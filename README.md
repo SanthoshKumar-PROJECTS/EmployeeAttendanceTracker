@@ -1,97 +1,71 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# Employee Attendance & Field Tracking Mobile Application
 
-# Getting Started
+A premium React Native mobile application designed for secure employee attendance and field tracking. This application operates entirely on the client-side, using local SQLite storage and Keychain services without requiring a backend server. Firebase is used exclusively for push notifications.
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+## Features
 
-## Step 1: Start Metro
+- **Secure Login & Registration**: Local account creation with secure Keychain credential storage.
+- **Biometric Authentication**: Fingerprint and Face ID support for quick, secure login.
+- **GPS-based Check-In & Check-Out**: Real-time location capture during attendance marking.
+- **On-Device Geofencing**: Automatically validates location against pre-defined coordinates and triggers warnings if marking outside allowed areas.
+- **Camera Integration**: Front-camera selfie capture during check-in/out, saved securely to local storage.
+- **Dashboard Analytics**: Shows attendance stats, streaks, weekly attendance overview, and graphical work-hours trends.
+- **Attendance History**: Browse and filter past attendance logs, complete with captured selfies and GPS map coordinates.
+- **Offline Functionality**: Inherently offline-first. All data syncs locally with SQLite.
+- **Push & Local Notifications**: Uses Firebase Cloud Messaging (FCM) for push notifications and Notifee for local reminders.
+- **Data Export**: Generates local JSON reports of attendance logs for easy sharing.
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+## Tech Stack
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+- **Framework**: React Native 0.83.9 (JavaScript)
+- **Local Storage**: `react-native-sqlite-storage` (SQLite)
+- **Credential Storage**: `react-native-keychain`
+- **Biometrics**: `react-native-biometrics`
+- **Location**: `react-native-geolocation-service`
+- **State Management**: Zustand
+- **Graphics & Styling**: Custom Premium Dark Theme, Vanilla CSS layout system, `react-native-chart-kit`
+- **Notifications**: `@react-native-firebase/app`, `@react-native-firebase/messaging`, `@notifee/react-native`
+- **Camera/Sharing**: `react-native-image-picker`, `@bam.tech/react-native-image-resizer`, `react-native-share`
 
-```sh
-# Using npm
-npm start
+## Getting Started
 
-# OR using Yarn
-yarn start
+### Step 1: Install Dependencies
+
+Make sure your node modules are clean and installed:
+```bash
+npm install
 ```
 
-## Step 2: Build and run your app
+*Note: `react-native-mmkv` has been removed to resolve compile-time dependencies related to `:react-native-nitro-modules`.*
 
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
+### Step 2: Run the Development Server
 
-### Android
+Start the Metro Bundler:
+```bash
+npm start -- --reset-cache
+```
 
-```sh
-# Using npm
+### Step 3: Run on Android
+
+Open a new terminal window and run:
+```bash
 npm run android
-
-# OR using Yarn
-yarn android
+```
+Alternatively, run the app directly through Android Studio or via Gradle command:
+```bash
+cd android
+.\gradlew.bat app:installDebug
 ```
 
-### iOS
+---
 
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
+## Local Architecture Diagram
 
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
-
-```sh
-bundle install
 ```
-
-Then, and every time you update your native dependencies, run:
-
-```sh
-bundle exec pod install
+Local Mobile App (100% Client-Side)
+├── Auth Service         → Local SQLite DB + Keychain Auth Tokens
+├── Geofencing           → Haversine distance validation against database zones
+├── Camera Service       → Native Camera UI (Selfie Capture) → Base64 / Local Filesystem
+├── Notifications        → Firebase Messaging (FCM API) + local Notifee alerts
+└── Export Service       → JSON file generation + Native Share API
 ```
-
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
-
-```sh
-# Using npm
-npm run ios
-
-# OR using Yarn
-yarn ios
-```
-
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
-
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
-
-## Step 3: Modify your app
-
-Now that you have successfully run the app, let's make changes!
-
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
-
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
-
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
-
-## Congratulations! :tada:
-
-You've successfully run and modified your React Native App. :partying_face:
-
-### Now what?
-
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
-
-# Troubleshooting
-
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
-
-# Learn More
-
-To learn more about React Native, take a look at the following resources:
-
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.

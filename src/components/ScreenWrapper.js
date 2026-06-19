@@ -1,0 +1,70 @@
+import React from 'react';
+import { View, StyleSheet, ScrollView, Platform, StatusBar, KeyboardAvoidingView } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Colors } from '../theme/colors';
+import { Spacing } from '../theme/spacing';
+
+const ScreenWrapper = ({
+  children,
+  scrollable = false,
+  keyboardAvoiding = false,
+  minPaddingTop = Spacing.xl,
+  style,
+  contentContainerStyle,
+  keyboardAvoidingProps,
+  ...rest
+}) => {
+  const insets = useSafeAreaInsets();
+  
+  const safeTop = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : insets.top;
+  const paddingTop = Math.max(safeTop, minPaddingTop);
+
+  let inner = scrollable ? (
+    <ScrollView
+      contentContainerStyle={[
+        contentContainerStyle,
+        { paddingTop }
+      ]}
+      showsVerticalScrollIndicator={false}
+      {...rest}
+    >
+      {children}
+    </ScrollView>
+  ) : (
+    <View style={[{ flex: 1 }, contentContainerStyle, { paddingTop }]} {...rest}>
+      {children}
+    </View>
+  );
+
+  if (keyboardAvoiding) {
+    inner = (
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
+        {...keyboardAvoidingProps}
+      >
+        {inner}
+      </KeyboardAvoidingView>
+    );
+  }
+
+  return (
+    <View style={[styles.container, style]}>
+      <StatusBar
+        barStyle="light-content"
+        backgroundColor="transparent"
+        translucent={true}
+      />
+      {inner}
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+});
+
+export default ScreenWrapper;
