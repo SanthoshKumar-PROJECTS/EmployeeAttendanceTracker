@@ -1,71 +1,93 @@
-# Employee Attendance & Field Tracking Mobile Application
+# Employee Attendance & Field Tracking App
 
-A premium React Native mobile application designed for secure employee attendance and field tracking. This application operates entirely on the client-side, using local SQLite storage and Keychain services without requiring a backend server. Firebase is used exclusively for push notifications.
+A premium, highly-optimized React Native mobile application designed for secure employee attendance and field tracking. This application features a robust **Offline-First SQLite Database Architecture**, delivering butter-smooth 60fps performance across dynamic interfaces, maps, and camera modules.
 
-## Features
+## 🚀 Core Features
 
-- **Secure Login & Registration**: Local account creation with secure Keychain credential storage.
-- **Biometric Authentication**: Fingerprint and Face ID support for quick, secure login.
-- **GPS-based Check-In & Check-Out**: Real-time location capture during attendance marking.
-- **On-Device Geofencing**: Automatically validates location against pre-defined coordinates and triggers warnings if marking outside allowed areas.
-- **Camera Integration**: Front-camera selfie capture during check-in/out, saved securely to local storage.
-- **Dashboard Analytics**: Shows attendance stats, streaks, weekly attendance overview, and graphical work-hours trends.
-- **Attendance History**: Browse and filter past attendance logs, complete with captured selfies and GPS map coordinates.
-- **Offline Functionality**: Inherently offline-first. All data syncs locally with SQLite.
-- **Push & Local Notifications**: Uses Firebase Cloud Messaging (FCM) for push notifications and Notifee for local reminders.
-- **Data Export**: Generates local JSON reports of attendance logs for easy sharing.
+- **Secure Login & Registration**: Local account creation with encrypted `Keychain` credential storage.
+- **Biometric Authentication**: One-tap Fingerprint and Face ID support.
+- **Google Maps Geofencing Engine**: 
+  - Dynamic `MapView` integration.
+  - Custom location picker with `Google Places API` reverse-geocoding.
+  - Real-time `haversine` distance calculations running offline on the device CPU.
+- **Vision Camera Integration**: 
+  - High-performance native `<Camera>` integration using `react-native-vision-camera` (Nitro Modules C++ Engine).
+  - Front-camera selfie capture during check-in/out.
+  - Images saved directly to the local filesystem (`react-native-fs`).
+- **Butter-Smooth UI Architecture**: 
+  - Isolated Timer components to prevent unnecessary screen renders.
+  - Deeply optimized `useMemo` hooks for Map rendering and `useCallback` implementations for infinite-scrolling lists.
+- **Offline-First Philosophy**: 
+  - The app's core functions (Check-In, Geofence calculation, Camera capture, and Dashboard Analytics) do **not** require internet access.
+  - All records and user data sync perfectly with the local SQLite database.
+- **Smart Notifications**: 
+  - Automatic offline daily reminder alarms triggered via `@notifee/react-native`.
+  - Firebase Cloud Messaging (`FCM`) configured for remote push notifications.
 
-## Tech Stack
+---
+
+## 🛠️ Technology Stack
 
 - **Framework**: React Native 0.83.9 (JavaScript)
-- **Local Storage**: `react-native-sqlite-storage` (SQLite)
+- **Local Database**: `react-native-sqlite-storage`
+- **State Management**: `zustand`
 - **Credential Storage**: `react-native-keychain`
 - **Biometrics**: `react-native-biometrics`
-- **Location**: `react-native-geolocation-service`
-- **State Management**: Zustand
-- **Graphics & Styling**: Custom Premium Dark Theme, Vanilla CSS layout system, `react-native-chart-kit`
+- **Location Engine**: `react-native-geolocation-service`
+- **Maps & Geocoding**: `react-native-maps`, `react-native-google-places-autocomplete`
+- **High-Performance Camera**: `react-native-vision-camera`, `react-native-nitro-modules`
+- **Filesystem**: `react-native-fs`
 - **Notifications**: `@react-native-firebase/app`, `@react-native-firebase/messaging`, `@notifee/react-native`
-- **Camera/Sharing**: `react-native-image-picker`, `@bam.tech/react-native-image-resizer`, `react-native-share`
+- **Graphics & Styling**: Custom Premium Dark Theme, Vanilla CSS layout system
 
-## Getting Started
+---
 
-### Step 1: Install Dependencies
+## 📦 Getting Started
 
-Make sure your node modules are clean and installed:
+### 1. Install Dependencies
 ```bash
 npm install
 ```
+*(Note: Ensure your environment is configured for React Native CLI, not Expo)*
 
-*Note: `react-native-mmkv` has been removed to resolve compile-time dependencies related to `:react-native-nitro-modules`.*
-
-### Step 2: Run the Development Server
-
-Start the Metro Bundler:
+### 2. Start the Metro Bundler
 ```bash
 npm start -- --reset-cache
 ```
 
-### Step 3: Run on Android
-
+### 3. Run on Android
 Open a new terminal window and run:
 ```bash
 npm run android
 ```
-Alternatively, run the app directly through Android Studio or via Gradle command:
-```bash
-cd android
-.\gradlew.bat app:installDebug
-```
 
 ---
 
-## Local Architecture Diagram
+## 🏗️ Local Architecture Flow
 
-```
+```text
 Local Mobile App (100% Client-Side)
-├── Auth Service         → Local SQLite DB + Keychain Auth Tokens
-├── Geofencing           → Haversine distance validation against database zones
-├── Camera Service       → Native Camera UI (Selfie Capture) → Base64 / Local Filesystem
-├── Notifications        → Firebase Messaging (FCM API) + local Notifee alerts
-└── Export Service       → JSON file generation + Native Share API
+│
+├── Auth Flow
+│   └── Zustand Store ↔ SQLite DB + Keychain Auth Tokens + Biometrics API
+│
+├── Settings & Configuration Flow
+│   └── SQLite DB (Geofence Configs) ↔ Google Places API (Location Picker)
+│
+├── Attendance Flow (Check In/Out)
+│   ├── Location Service (GPS Lat/Lng)
+│   ├── Geofence Validator (Haversine CPU calc against DB zones)
+│   ├── Camera Service (Native Vision Camera → Base64 / Local Filesystem)
+│   └── SQLite DB (Insert Attendance Record)
+│
+├── Dashboard & History Flow
+│   ├── Zustand Store (Memory Cache) ↔ SQLite DB (Query Rows)
+│   └── FlatList Engine (Render optimized historical tiles + Mini-Maps)
+│
+└── Notification Flow
+    └── Firebase Messaging (Remote FCM) + Notifee (Local Alarms)
 ```
+
+## ⚡ Performance Highlights
+* **ProGuard:** ProGuard has been explicitly disabled in `release` builds to ensure seamless compatibility with Google Firebase reflection dependencies. 
+* **React Native Memory:** `LiveTimer` components are strictly isolated, and heavy UI nodes (`MapView`, `Camera`) are memoized to guarantee smooth navigation transitions and strict 60fps scrolling.
