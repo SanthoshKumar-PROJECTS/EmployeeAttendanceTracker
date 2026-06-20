@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -20,9 +21,8 @@ import { Spacing } from '../theme/spacing';
 import { Fonts } from '../theme/fonts';
 import useAuthStore from '../store/useAuthStore';
 import useAttendanceStore from '../store/useAttendanceStore';
-import { formatTime, formatDate, calculateDuration, getRelativeDay } from '../utils/dateUtils';
+import { formatTime, calculateDuration, getRelativeDay } from '../utils/dateUtils';
 import CameraService from '../services/CameraService';
-import AttendanceMapModal from '../components/AttendanceMapModal';
 import ScreenWrapper from '../components/ScreenWrapper';
 import { scale, verticalScale, moderateScale } from '../utils/responsive';
 
@@ -30,27 +30,33 @@ const AttendanceHistoryScreen = ({ navigation }) => {
   const { user } = useAuthStore();
   const { history, loadHistory, isLoading, hasMoreHistory } = useAttendanceStore();
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedMonth, setSelectedMonth] = useState(new Date());
-  const [mapModalVisible, setMapModalVisible] = useState(false);
-  const [selectedRecord, setSelectedRecord] = useState(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
+  // Only run the initial fade animation once on mount
   useEffect(() => {
-    if (user) loadHistory(user.id, true);
     Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }).start();
-  }, []);
+  }, [fadeAnim]);
+
+  // Automatically refresh data from SQLite every time this screen is opened
+  useFocusEffect(
+    useCallback(() => {
+      if (user) {
+        loadHistory(user.id, true);
+      }
+    }, [user, loadHistory])
+  );
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     if (user) await loadHistory(user.id, true);
     setRefreshing(false);
-  }, [user]);
+  }, [user, loadHistory]);
 
-  const loadMore = () => {
+  const loadMore = useCallback(() => {
     if (hasMoreHistory && !isLoading && user) {
       loadHistory(user.id, false);
     }
-  };
+  }, [hasMoreHistory, isLoading, user, loadHistory]);
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -70,39 +76,31 @@ const AttendanceHistoryScreen = ({ navigation }) => {
     }
   };
 
-  const renderRecord = ({ item, index }) => {
+  const renderRecord = useCallback(({ item, index }) => {
     const duration = calculateDuration(item.checkInTime, item.checkOutTime);
-    const selfieUri = CameraService.getSelfieUri(item.selfiePath);
+    
+    // Animation delay based on index for staggered entrance
+    const itemAnim = new Animated.Value(0);
+    Animated.timing(itemAnim, {
+      toValue: 1,
+      duration: 400,
+      delay: index * 100,
+      useNativeDriver: true,
+    }).start();
 
     return (
-      <TouchableOpacity
-        activeOpacity={0.85}
-        onPress={() => {
-          setSelectedRecord(item);
-          setMapModalVisible(true);
-        }}
+      <TouchableOpacity 
+        activeOpacity={0.7} 
+        onPress={() => navigation.navigate('AttendanceDetails', { record: item })}
       >
-        <Animated.View
-          style={[
-            styles.recordCard,
-            {
-              opacity: fadeAnim,
-              transform: [{
-                translateY: fadeAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [20, 0],
-                }),
-              }],
-            },
-          ]}
-        >
-          {/* Left: Selfie thumbnail */}
+        <Animated.View style={[styles.recordCard, { opacity: itemAnim, transform: [{ translateY: itemAnim.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }]}>
+          {/* Left: Selfie Thumbnail */}
           <View style={styles.recordLeft}>
-            {selfieUri ? (
-              <Image source={{ uri: selfieUri }} style={styles.thumbnail} />
+            {item.selfiePath ? (
+              <Image source={{ uri: item.selfiePath.startsWith('file://') ? item.selfiePath : `file://${item.selfiePath}` }} style={styles.thumbnail} />
             ) : (
-              <View style={styles.thumbnailPlaceholder}>
-                <Icon name="account" size={24} color={Colors.textMuted} />
+              <View style={[styles.thumbnail, styles.thumbnailPlaceholder]}>
+                <Icon name="camera-off" size={20} color={Colors.textMuted} />
               </View>
             )}
           </View>
@@ -142,26 +140,34 @@ const AttendanceHistoryScreen = ({ navigation }) => {
                   <Text style={styles.metaText}>{duration.formatted}</Text>
                 </View>
               )}
-              {item.geofenceZone ? (
-                <View style={styles.metaItem}>
-                  <Icon name="map-marker" size={12} color={Colors.textMuted} />
-                  <Text style={styles.metaText}>{item.geofenceZone}</Text>
+              <View style={styles.metaItem}>
+                <Icon name="login" size={12} color={Colors.textMuted} />
+                <Text style={[styles.metaText, { flexShrink: 1 }]} numberOfLines={1} ellipsizeMode="tail">
+                  In: {item.geofenceZone || 'Unknown'}
+                </Text>
+                <Text style={{ fontFamily: Fonts.regular, fontSize: moderateScale(11), marginLeft: 4, flexShrink: 0, color: item.isWithinGeofence !== 0 ? Colors.success : Colors.error }}>
+                  ({item.isWithinGeofence !== 0 ? 'Inside' : 'Outside'})
+                </Text>
+              </View>
+              {item.checkOutTime ? (
+                <View style={[styles.metaItem, { marginTop: 4 }]}>
+                  <Icon name="logout" size={12} color={Colors.textMuted} />
+                  <Text style={[styles.metaText, { flexShrink: 1 }]} numberOfLines={1} ellipsizeMode="tail">
+                    Out: {item.checkOutGeofenceZone || item.geofenceZone || 'Unknown'}
+                  </Text>
+                  <Text style={{ fontFamily: Fonts.regular, fontSize: moderateScale(11), marginLeft: 4, flexShrink: 0, color: item.isCheckOutWithinGeofence !== 0 ? Colors.success : Colors.error }}>
+                    ({item.isCheckOutWithinGeofence !== 0 ? 'Inside' : 'Outside'})
+                  </Text>
                 </View>
               ) : null}
-              {!item.isWithinGeofence && (
-                <View style={styles.metaItem}>
-                  <Icon name="alert" size={12} color={Colors.warning} />
-                  <Text style={[styles.metaText, { color: Colors.warning }]}>Outside zone</Text>
-                </View>
-              )}
             </View>
           </View>
         </Animated.View>
       </TouchableOpacity>
     );
-  };
+  }, [navigation]);
 
-  const renderEmpty = () => (
+  const renderEmpty = useCallback(() => (
     <View style={styles.emptyContainer}>
       <Icon name="calendar-blank" size={64} color={Colors.textMuted} />
       <Text style={styles.emptyTitle}>No Records Yet</Text>
@@ -173,9 +179,9 @@ const AttendanceHistoryScreen = ({ navigation }) => {
         <Text style={styles.emptyButtonText}>Check In Now</Text>
       </TouchableOpacity>
     </View>
-  );
+  ), [navigation]);
 
-  const renderHeader = () => (
+  const renderHeader = useCallback(() => (
     <View style={styles.listHeader}>
       {/* Summary Stats */}
       <View style={styles.summaryRow}>
@@ -197,9 +203,9 @@ const AttendanceHistoryScreen = ({ navigation }) => {
         </View>
       </View>
     </View>
-  );
+  ), [history]);
 
-  const renderFooter = () => {
+  const renderFooter = useCallback(() => {
     if (!hasMoreHistory) return null;
     if (isLoading) {
       return (
@@ -209,12 +215,12 @@ const AttendanceHistoryScreen = ({ navigation }) => {
       );
     }
     return null;
-  };
+  }, [hasMoreHistory, isLoading]);
 
   return (
     <ScreenWrapper scrollable={false}>
-      {/* Header */}
-      <View style={styles.header}>
+      {/* Sticky Header */}
+      <View style={[styles.header, { paddingHorizontal: Spacing.screenPadding.horizontal, paddingTop: Spacing.sm }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={Spacing.hitSlop}>
           <Icon name="arrow-left" size={24} color={Colors.textPrimary} />
         </TouchableOpacity>
@@ -232,21 +238,15 @@ const AttendanceHistoryScreen = ({ navigation }) => {
         ListFooterComponent={renderFooter}
         onEndReached={loadMore}
         onEndReachedThreshold={0.3}
+        initialNumToRender={10}
+        maxToRenderPerBatch={10}
+        windowSize={5}
+        removeClippedSubviews={true}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />
         }
-      />
-
-      {/* Map Verification Modal */}
-      <AttendanceMapModal
-        isVisible={mapModalVisible}
-        onClose={() => {
-          setMapModalVisible(false);
-          setSelectedRecord(null);
-        }}
-        record={selectedRecord}
       />
       </ScreenWrapper>
     );
@@ -256,10 +256,10 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   header: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: Spacing.screenPadding.horizontal, paddingTop: 0, paddingBottom: Spacing.md,
+    marginBottom: Spacing.xl,
   },
   headerTitle: { fontFamily: Fonts.bold, fontSize: moderateScale(20), color: Colors.textPrimary },
-  listContent: { paddingHorizontal: Spacing.screenPadding.horizontal, paddingBottom: 100 },
+  listContent: { paddingHorizontal: Spacing.screenPadding.horizontal, paddingBottom: 20 },
 
   // Summary
   listHeader: { marginBottom: Spacing.md },
@@ -295,7 +295,7 @@ const styles = StyleSheet.create({
   timeText: { fontFamily: Fonts.regular, fontSize: moderateScale(13), color: Colors.textSecondary, marginLeft: 4, fontVariant: ['tabular-nums'] },
   timeArrow: { marginHorizontal: 6 },
 
-  metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  metaRow: { flexDirection: 'column', gap: 6, marginTop: 4 },
   metaItem: { flexDirection: 'row', alignItems: 'center' },
   metaText: { fontFamily: Fonts.regular, fontSize: moderateScale(11), color: Colors.textMuted, marginLeft: 3 },
 

@@ -39,14 +39,14 @@ export const createRecord = async ({
 /**
  * Update record for check-out
  */
-export const checkOut = async (id, { checkOutLat, checkOutLng }) => {
+export const checkOut = async (id, { checkOutLat, checkOutLng, checkOutGeofenceZone = '', isCheckOutWithinGeofence = true }) => {
   const timestamp = now();
   await executeSql(
     `UPDATE ${TABLE} SET 
-     checkOutTime = ?, checkOutLat = ?, checkOutLng = ?, 
+     checkOutTime = ?, checkOutLat = ?, checkOutLng = ?, checkOutGeofenceZone = ?, isCheckOutWithinGeofence = ?,
      status = 'checked_out', updatedAt = ?
      WHERE id = ?`,
-    [timestamp, checkOutLat, checkOutLng, timestamp, id]
+    [timestamp, checkOutLat, checkOutLng, checkOutGeofenceZone, isCheckOutWithinGeofence ? 1 : 0, timestamp, id]
   );
   return findById(id);
 };

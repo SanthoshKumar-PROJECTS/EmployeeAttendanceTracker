@@ -80,10 +80,10 @@ const useAttendanceStore = create((set, get) => ({
   /**
    * Perform check-out (closes the active session)
    */
-  checkOut: async (userId) => {
+  checkOut: async (userId, zoneName = '', isInsideGeofence = true) => {
     try {
       set({ isCheckingOut: true, error: null });
-      const record = await AttendanceService.checkOut(userId);
+      const record = await AttendanceService.checkOut(userId, zoneName, isInsideGeofence);
       // Reload full today status — status becomes 'available' (not 'checked_out')
       const todayStatus = await AttendanceService.getTodayStatus(userId);
       set({

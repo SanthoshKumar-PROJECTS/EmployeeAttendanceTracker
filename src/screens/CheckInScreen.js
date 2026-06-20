@@ -3,16 +3,19 @@
  * GPS capture, geofence verification, selfie capture, and check-in/out actions.
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
   Text,
   StyleSheet,
+  ScrollView,
   TouchableOpacity,
   Image,
   ActivityIndicator,
   Animated,
   Alert,
+  Modal,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors } from '../theme/colors';
@@ -26,6 +29,7 @@ import useAttendanceStore from '../store/useAttendanceStore';
 import LocationService from '../services/LocationService';
 import GeofenceService from '../services/GeofenceService';
 import CameraService from '../services/CameraService';
+import LiveTimer from '../components/LiveTimer';
 import { formatTime, calculateLiveDuration, calculateDuration } from '../utils/dateUtils';
 import { getISTGreeting } from '../utils/dateUtils';
 import { formatDistance } from '../utils/geofencing';
@@ -51,23 +55,18 @@ const CheckInScreen = ({ navigation }) => {
 
   const [location, setLocation] = useState(null);
   const [zones, setZones] = useState([]);
+  const [selectedZoneId, setSelectedZoneId] = useState('auto');
   const [geofenceStatus, setGeofenceStatus] = useState(null);
   const [selfiePath, setSelfiePath] = useState(null);
   const [selfieUri, setSelfieUri] = useState(null);
   const [locationLoading, setLocationLoading] = useState(true);
   const [locationError, setLocationError] = useState(null);
   const [placeName, setPlaceName] = useState('');
-  const [liveTimer, setLiveTimer] = useState('00:00:00');
   const [isCameraModalVisible, setIsCameraModalVisible] = useState(false);
+  const [isMapModalVisible, setIsMapModalVisible] = useState(false);
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    if (user) loadTodayStatus(user.id);
-    Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }).start();
-    fetchLocationAndZones();
-  }, []);
 
   const fetchLocationAndZones = async () => {
     try {
@@ -78,6 +77,15 @@ const CheckInScreen = ({ navigation }) => {
     }
     await fetchLocation();
   };
+
+  useFocusEffect(
+    useCallback(() => {
+      if (user) loadTodayStatus(user.id);
+      Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }).start();
+      fetchLocationAndZones();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [user])
+  );
 
   // Pulse animation for the check-in button
   useEffect(() => {
@@ -90,30 +98,16 @@ const CheckInScreen = ({ navigation }) => {
     );
     pulse.start();
     return () => pulse.stop();
-  }, [todayStatus]);
-
-  // Live timer for current active session
-  useEffect(() => {
-    let interval;
-    if (todayStatus?.status === 'checked_in' && todayStatus?.activeSession?.checkInTime) {
-      interval = setInterval(() => {
-        const dur = calculateLiveDuration(todayStatus.activeSession.checkInTime);
-        setLiveTimer(dur.formatted);
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [todayStatus]);
+  }, [todayStatus, pulseAnim]);
 
   const fetchLocation = async () => {
-    setLocationLoading(true);
     setLocationError(null);
-    setPlaceName('');
     try {
       const pos = await LocationService.getCurrentPosition();
       setLocation(pos);
 
       // Check geofence
-      const gfResult = await GeofenceService.checkPosition(pos);
+      const gfResult = await GeofenceService.checkPosition(pos, selectedZoneId);
       setGeofenceStatus(gfResult);
 
       // Fetch place name
@@ -122,7 +116,7 @@ const CheckInScreen = ({ navigation }) => {
         setPlaceName(name);
       } catch (placeErr) {
         console.warn('Failed to fetch place name:', placeErr);
-        setPlaceName('Location Name Unavailable');
+        if (!placeName) setPlaceName('Location Name Unavailable');
       }
     } catch (err) {
       setLocationError(err.message);
@@ -130,6 +124,14 @@ const CheckInScreen = ({ navigation }) => {
       setLocationLoading(false);
     }
   };
+
+
+  // Recalculate geofence when selected zone changes
+  useEffect(() => {
+    if (location) {
+      GeofenceService.checkPosition(location, selectedZoneId).then(setGeofenceStatus);
+    }
+  }, [selectedZoneId, location]);
 
   const handleCaptureSelfie = () => {
     setIsCameraModalVisible(true);
@@ -176,8 +178,19 @@ const CheckInScreen = ({ navigation }) => {
     performCheckIn(false);
   };
 
+  const getSelectedZoneName = () => {
+    if (geofenceStatus?.matchedZone) return geofenceStatus.matchedZone.name;
+    if (selectedZoneId !== 'auto') {
+      const z = zones.find(x => x.id === selectedZoneId);
+      if (z) return z.name;
+    }
+    if (geofenceStatus?.nearestZone) return geofenceStatus.nearestZone.zone.name;
+    return 'Unknown Zone';
+  };
+
   const performCheckIn = async (skipGeofence) => {
-    const result = await checkIn(user.id, { selfiePath, skipGeofence });
+    const currentZone = getSelectedZoneName();
+    const result = await checkIn(user.id, { selfiePath, skipGeofence, zoneName: currentZone });
     if (result.success) {
       Alert.alert('✅ Checked In!', 'Your attendance has been recorded.');
       setSelfiePath(null);
@@ -195,7 +208,9 @@ const CheckInScreen = ({ navigation }) => {
         {
           text: 'Check Out',
           onPress: async () => {
-            const result = await checkOut(user.id);
+            const currentZone = getSelectedZoneName();
+            const isInside = geofenceStatus?.isInsideAny ?? true;
+            const result = await checkOut(user.id, currentZone, isInside);
             if (result.success) {
               const greeting = getISTGreeting().toLowerCase();
               Alert.alert('✅ Checked Out!', `Have a great ${greeting}!`);
@@ -214,21 +229,22 @@ const CheckInScreen = ({ navigation }) => {
 
   return (
     <ScreenWrapper scrollable={false}>
-      <Animated.ScrollView
-        style={{ opacity: fadeAnim }}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Header */}
-        <View style={styles.header}>
+      <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
+        {/* Sticky Header */}
+        <View style={[styles.header, { paddingHorizontal: Spacing.screenPadding.horizontal, paddingTop: Spacing.sm }]}>
           <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={Spacing.hitSlop}>
             <Icon name="arrow-left" size={24} color={Colors.textPrimary} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Attendance</Text>
-          <TouchableOpacity onPress={fetchLocationAndZones} hitSlop={Spacing.hitSlop}>
+          <TouchableOpacity onPress={() => { setLocationLoading(true); fetchLocationAndZones(); }} hitSlop={Spacing.hitSlop}>
             <Icon name="refresh" size={22} color={Colors.textSecondary} />
           </TouchableOpacity>
         </View>
+
+        <ScrollView
+          contentContainerStyle={[styles.scrollContent, { paddingTop: 0 }]}
+          showsVerticalScrollIndicator={false}
+        >
 
         {/* Location Card */}
         <View style={styles.card}>
@@ -271,15 +287,17 @@ const CheckInScreen = ({ navigation }) => {
               initialRegion={{
                 latitude: location.latitude,
                 longitude: location.longitude,
-                latitudeDelta: 0.005,
-                longitudeDelta: 0.005,
+                latitudeDelta: 0.012,
+                longitudeDelta: 0.012,
               }}
               customMapStyle={mapDarkStyle}
               showsUserLocation={false}
               showsMyLocationButton={false}
-              zoomEnabled={true}
+              zoomEnabled={false}
+              scrollEnabled={false}
               pitchEnabled={false}
               rotateEnabled={false}
+              onPress={() => setIsMapModalVisible(true)}
             >
               {/* Current location marker */}
               <Marker
@@ -297,11 +315,11 @@ const CheckInScreen = ({ navigation }) => {
               </Marker>
 
               {/* Geofence Circles & Office Markers */}
-              {zones.map((zone) => {
+              {zones.filter(z => z.isActive && (selectedZoneId === 'auto' || selectedZoneId === z.id)).map((zone) => {
                 const isCurrentMatched = geofenceStatus?.matchedZone?.id === zone.id;
                 const strokeColor = isCurrentMatched ? Colors.success : Colors.primary;
                 const fillColor = isCurrentMatched ? Colors.successGlow : Colors.primaryGlow;
-                
+
                 return (
                   <React.Fragment key={zone.id}>
                     <Circle
@@ -328,6 +346,41 @@ const CheckInScreen = ({ navigation }) => {
                 );
               })}
             </MapView>
+            <TouchableOpacity 
+              style={styles.expandMapIcon}
+              onPress={() => setIsMapModalVisible(true)}
+              hitSlop={Spacing.hitSlop}
+            >
+              <Icon name="fullscreen" size={24} color={Colors.white} />
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Zone Picker */}
+        {geofenceStatus && (
+          <View style={styles.pickerContainer}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pickerScroll}>
+              <TouchableOpacity
+                style={[styles.chip, selectedZoneId === 'auto' && styles.chipActive]}
+                onPress={() => setSelectedZoneId('auto')}
+              >
+                <Icon name="crosshairs-gps" size={16} color={selectedZoneId === 'auto' ? Colors.white : Colors.textSecondary} />
+                <Text style={[styles.chipText, selectedZoneId === 'auto' && styles.chipTextActive]}>Auto (Nearest)</Text>
+              </TouchableOpacity>
+
+              {zones.filter(z => z.isActive).map(zone => (
+                <TouchableOpacity
+                  key={zone.id}
+                  style={[styles.chip, selectedZoneId === zone.id && styles.chipActive, { maxWidth: scale(200) }]}
+                  onPress={() => setSelectedZoneId(zone.id)}
+                >
+                  <Icon name="map-marker-radius" size={16} color={selectedZoneId === zone.id ? Colors.white : Colors.textSecondary} />
+                  <Text style={[styles.chipText, selectedZoneId === zone.id && styles.chipTextActive]} numberOfLines={1} ellipsizeMode="tail">
+                    {zone.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
           </View>
         )}
 
@@ -358,19 +411,20 @@ const CheckInScreen = ({ navigation }) => {
                   </Text>
                 </View>
               ) : (
-                <View>
-                  <View style={styles.geofenceRow}>
-                    <View style={[styles.statusDot, { backgroundColor: Colors.error }]} />
-                    <Text style={[styles.geofenceText, { color: Colors.error }]}>Outside Allowed Area</Text>
-                  </View>
-                  <Text style={styles.geofenceDetail}>
-                    Nearest: {geofenceStatus.nearestZone?.zone?.name} ({formatDistance(geofenceStatus.nearestZone?.distance)})
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.cardTitle, { color: Colors.error }]}>Outside Allowed Area</Text>
+                  <Text style={styles.geofenceDetail} numberOfLines={2}>
+                    Nearest: {geofenceStatus.nearestZone.zone.name}{'\n'}
+                    ({formatDistance(geofenceStatus.nearestZone.distance)})
                   </Text>
                 </View>
               )}
             </View>
           ) : (
-            <Text style={styles.geofenceDetail}>Checking geofence zones...</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: Spacing.xs }}>
+              <ActivityIndicator size="small" color={Colors.primary} style={{ marginRight: Spacing.sm }} />
+              <Text style={[styles.geofenceDetail, { marginTop: 0 }]}>Checking geofence zones...</Text>
+            </View>
           )}
         </View>
 
@@ -429,8 +483,34 @@ const CheckInScreen = ({ navigation }) => {
                         {session.checkOutTime ? ` — ${formatTime(session.checkOutTime)}` : ' — ...'}
                       </Text>
                     </View>
+                    <View style={styles.sessionLocations}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <Text style={[styles.sessionLocationText, { flexShrink: 1 }]} numberOfLines={1} ellipsizeMode="tail">
+                          In: {session.geofenceZone || 'Unknown'}
+                        </Text>
+                        <Text style={[styles.sessionLocationText, { flexShrink: 0, color: session.isWithinGeofence ? Colors.success : Colors.error, marginLeft: 4 }]}>
+                          ({session.isWithinGeofence ? 'Inside' : 'Outside'})
+                        </Text>
+                      </View>
+                      {session.checkOutTime ? (
+                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                          <Text style={[styles.sessionLocationText, { flexShrink: 1 }]} numberOfLines={1} ellipsizeMode="tail">
+                            Out: {session.checkOutGeofenceZone || session.geofenceZone || 'Unknown'}
+                          </Text>
+                          <Text style={[styles.sessionLocationText, { flexShrink: 0, color: session.isCheckOutWithinGeofence !== 0 ? Colors.success : Colors.error, marginLeft: 4 }]}>
+                            ({session.isCheckOutWithinGeofence !== 0 ? 'Inside' : 'Outside'})
+                          </Text>
+                        </View>
+                      ) : (
+                        <Text style={[styles.sessionLocationText, { color: Colors.success }]}>In Progress</Text>
+                      )}
+                    </View>
                     <Text style={[styles.sessionDuration, isActive && { color: Colors.success }]}>
-                      {isActive ? `Active: ${liveTimer}` : duration.formatted}
+                      {isActive ? (
+                        <Text>Active: <LiveTimer startTime={todayStatus?.activeSession?.checkInTime} /></Text>
+                      ) : (
+                        duration.formatted
+                      )}
                     </Text>
                   </View>
                   <View style={[
@@ -463,9 +543,9 @@ const CheckInScreen = ({ navigation }) => {
           {isCheckedIn ? (
             <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
               <TouchableOpacity
-                style={[styles.mainButton, styles.checkOutButton]}
+                style={[styles.mainButton, styles.checkOutButton, (locationLoading || !geofenceStatus) && styles.buttonDisabled]}
                 onPress={handleCheckOut}
-                disabled={isCheckingOut}
+                disabled={isCheckingOut || locationLoading || !geofenceStatus}
                 activeOpacity={0.8}
               >
                 {isCheckingOut ? (
@@ -480,9 +560,9 @@ const CheckInScreen = ({ navigation }) => {
             </Animated.View>
           ) : (
             <TouchableOpacity
-              style={[styles.mainButton, styles.checkInButton, (!canCheckIn || !selfiePath) && styles.buttonDisabled]}
+              style={[styles.mainButton, styles.checkInButton, (!canCheckIn || !selfiePath || !geofenceStatus) && styles.buttonDisabled]}
               onPress={handleCheckIn}
-              disabled={!canCheckIn || !selfiePath || isCheckingIn}
+              disabled={!canCheckIn || !selfiePath || isCheckingIn || !geofenceStatus}
               activeOpacity={0.8}
             >
               {isCheckingIn ? (
@@ -496,22 +576,132 @@ const CheckInScreen = ({ navigation }) => {
             </TouchableOpacity>
           )}
         </View>
-      </Animated.ScrollView>
+        </ScrollView>
+      </Animated.View>
 
       <CustomCameraModal
         visible={isCameraModalVisible}
         onClose={() => setIsCameraModalVisible(false)}
         onPhotoCaptured={handlePhotoCaptured}
       />
+
+      {/* Full Screen Map Modal */}
+      <Modal
+        visible={isMapModalVisible}
+        animationType="slide"
+        onRequestClose={() => setIsMapModalVisible(false)}
+      >
+    <ScreenWrapper scrollable={false}>
+          {/* Sticky Header */}
+          <View style={[styles.fullScreenMapHeader, { paddingTop: Spacing.sm }]}>
+            <TouchableOpacity onPress={() => setIsMapModalVisible(false)} hitSlop={Spacing.hitSlop}>
+              <Icon name="close" size={24} color={Colors.textPrimary} />
+            </TouchableOpacity>
+            <Text style={styles.fullScreenMapTitle}>Live GPS Coverage</Text>
+            <View style={{ width: 24 }} />
+          </View>
+
+          {location && (
+            <MapView
+              provider={PROVIDER_GOOGLE}
+              style={{ flex: 1 }}
+              initialRegion={{
+                latitude: location.latitude,
+                longitude: location.longitude,
+                latitudeDelta: 0.025,
+                longitudeDelta: 0.025,
+              }}
+              customMapStyle={mapDarkStyle}
+              showsUserLocation={false}
+              showsMyLocationButton={false}
+            >
+              {/* Current location marker */}
+              <Marker
+                coordinate={{ latitude: location.latitude, longitude: location.longitude }}
+                title="Your Location"
+              >
+                <View style={styles.userMarkerContainer}>
+                  <View style={styles.userMarkerDot} />
+                  <View style={styles.userMarkerPulse} />
+                </View>
+              </Marker>
+
+              {/* All Zones */}
+              {zones.filter(z => z.isActive).map((zone) => {
+                const isCurrentMatched = geofenceStatus?.matchedZone?.id === zone.id;
+                const strokeColor = isCurrentMatched ? Colors.success : Colors.primary;
+                const fillColor = isCurrentMatched ? Colors.successGlow : Colors.primaryGlow;
+
+                return (
+                  <React.Fragment key={`full-${zone.id}`}>
+                    <Circle
+                      center={{ latitude: zone.latitude, longitude: zone.longitude }}
+                      radius={zone.radiusMeters}
+                      strokeWidth={2}
+                      strokeColor={strokeColor}
+                      fillColor={fillColor}
+                    />
+                    <Marker
+                      coordinate={{ latitude: zone.latitude, longitude: zone.longitude }}
+                      title={zone.name}
+                      description={`Radius: ${zone.radiusMeters}m`}
+                    >
+                      <View style={{ alignItems: 'center' }}>
+                        <Icon name="office-building" size={24} color={isCurrentMatched ? Colors.success : Colors.textMuted} />
+                        <View style={styles.mapLabelBox}>
+                          <Text style={styles.mapLabelText}>{zone.name}</Text>
+                        </View>
+                      </View>
+                    </Marker>
+                  </React.Fragment>
+                );
+              })}
+            </MapView>
+          )}
+        </ScreenWrapper>
+      </Modal>
+
     </ScreenWrapper>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  scrollContent: { paddingHorizontal: Spacing.screenPadding.horizontal, paddingTop: 0, paddingBottom: 100 },
+  scrollContent: { paddingHorizontal: Spacing.screenPadding.horizontal, paddingTop: 0, paddingBottom: 20 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.xl },
   headerTitle: { fontFamily: Fonts.bold, fontSize: moderateScale(20), color: Colors.textPrimary },
+
+  pickerContainer: {
+    marginBottom: Spacing.md,
+  },
+  pickerScroll: {
+    paddingHorizontal: Spacing.xs,
+    gap: Spacing.sm,
+  },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: verticalScale(8),
+    borderRadius: moderateScale(20),
+    marginRight: Spacing.sm,
+  },
+  chipActive: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  chipText: {
+    fontFamily: Fonts.medium,
+    fontSize: moderateScale(13),
+    color: Colors.textSecondary,
+    marginLeft: 6,
+  },
+  chipTextActive: {
+    color: Colors.white,
+  },
 
   card: {
     backgroundColor: Colors.surface, borderRadius: Spacing.radius.lg,
@@ -557,6 +747,9 @@ const styles = StyleSheet.create({
   timerContainer: { alignItems: 'center', marginTop: Spacing.base, paddingTop: Spacing.md },
   timerLabel: { fontFamily: Fonts.regular, fontSize: moderateScale(12), color: Colors.textSecondary },
   timerValue: { fontFamily: Fonts.bold, fontSize: moderateScale(28), color: Colors.success, marginTop: 4, fontVariant: ['tabular-nums'] },
+
+  sessionLocations: { flexDirection: 'column', gap: 4, marginTop: 4 },
+  sessionLocationText: { fontFamily: Fonts.regular, fontSize: moderateScale(11), color: Colors.textSecondary, flexShrink: 1 },
 
   errorBanner: {
     flexDirection: 'row', alignItems: 'center',
@@ -626,6 +819,45 @@ const styles = StyleSheet.create({
     borderRadius: moderateScale(12),
     backgroundColor: Colors.accentGlow,
     zIndex: 1,
+  },
+  expandMapIcon: {
+    position: 'absolute',
+    bottom: 8,
+    right: 8,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: 20,
+    padding: 6,
+    zIndex: 10,
+  },
+  fullScreenMapContainer: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  fullScreenMapHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.screenPadding.horizontal,
+    paddingBottom: Spacing.md,
+    backgroundColor: Colors.background,
+    zIndex: 10,
+  },
+  fullScreenMapTitle: {
+    fontFamily: Fonts.bold,
+    fontSize: moderateScale(16),
+    color: Colors.textPrimary,
+  },
+  mapLabelBox: {
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginTop: 2,
+  },
+  mapLabelText: {
+    color: Colors.white,
+    fontSize: moderateScale(10),
+    fontFamily: Fonts.medium,
   },
 });
 

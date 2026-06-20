@@ -286,6 +286,7 @@ export const scheduleCheckInReminder = async () => {
 
   await notifee.createTriggerNotification(
     {
+      id: 'daily-checkin-reminder',
       title: '⏰ Time to Check In!',
       body: "Good morning! Don't forget to mark your attendance.",
       android: {
@@ -313,6 +314,7 @@ export const scheduleCheckOutReminder = async () => {
 
   await notifee.createTriggerNotification(
     {
+      id: 'daily-checkout-reminder',
       title: '🏠 Time to Check Out!',
       body: 'End of day! Remember to check out before leaving.',
       android: {
@@ -363,6 +365,10 @@ export const initialize = async () => {
   await requestPermission();
   await createChannels();
   setupForegroundHandler();
+  
+  // Clear any old duplicate ghost triggers before scheduling new ones
+  await notifee.cancelAllNotifications();
+  
   await scheduleCheckInReminder();
   await scheduleCheckOutReminder();
 };

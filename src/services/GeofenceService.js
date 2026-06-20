@@ -14,12 +14,18 @@ export const initialize = async () => {
 };
 
 /**
- * Check current position against all active geofence zones
+ * Check current position against all active geofence zones, or a specific zone if provided
  * @param {{ latitude: number, longitude: number }} position
+ * @param {string|null} targetZoneId 
  * @returns {Promise<{ isInsideAny: boolean, matchedZone: object|null, nearestZone: object }>}
  */
-export const checkPosition = async (position) => {
-  const zones = await GeofenceRepository.getActiveZones();
+export const checkPosition = async (position, targetZoneId = null) => {
+  let zones = await GeofenceRepository.getActiveZones();
+  
+  if (targetZoneId && targetZoneId !== 'auto') {
+    zones = zones.filter(z => z.id === targetZoneId);
+  }
+
   return checkAllGeofences(position, zones);
 };
 

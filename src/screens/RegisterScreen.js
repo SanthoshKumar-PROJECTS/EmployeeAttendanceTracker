@@ -11,11 +11,10 @@ import {
   TouchableOpacity,
   StyleSheet,
   Animated,
-  KeyboardAvoidingView,
-  Platform,
   ActivityIndicator,
   ScrollView,
 } from 'react-native';
+import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors } from '../theme/colors';
 import { Spacing } from '../theme/spacing';
@@ -34,7 +33,8 @@ const RegisterScreen = ({ navigation }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState({});
 
-  const { register, isLoading, error, clearError } = useAuthStore();
+  const { register, isAuthLoading: isLoading, error, clearError } = useAuthStore();
+  const isFocused = useIsFocused();
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
@@ -44,7 +44,13 @@ const RegisterScreen = ({ navigation }) => {
       Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
       Animated.timing(slideAnim, { toValue: 0, duration: 500, useNativeDriver: true }),
     ]).start();
-  }, []);
+  }, [fadeAnim, slideAnim]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      clearError();
+    }, [clearError])
+  );
 
   const validate = () => {
     const errs = {};
@@ -61,20 +67,16 @@ const RegisterScreen = ({ navigation }) => {
   };
 
   const handleRegister = async () => {
-    clearError();
     if (!validate()) return;
 
-    const result = await register({
+    clearError();
+    await register({
       email: email.trim(),
       password,
       fullName: fullName.trim(),
       department: department.trim(),
       phone: phone.trim(),
     });
-
-    if (!result.success) {
-      // error is set in store
-    }
   };
 
   const getPasswordStrength = () => {
@@ -129,14 +131,11 @@ const RegisterScreen = ({ navigation }) => {
 
   return (
     <ScreenWrapper
-      scrollable={true}
+      scrollable={false}
       keyboardAvoiding={true}
-      minPaddingTop={Spacing.xxl}
-      contentContainerStyle={styles.scrollContent}
-      keyboardShouldPersistTaps="handled"
     >
-          {/* Header */}
-          <Animated.View style={[styles.header, { opacity: fadeAnim }]}>
+          {/* Sticky Header */}
+          <Animated.View style={[styles.header, { opacity: fadeAnim, paddingHorizontal: Spacing.screenPadding.horizontal, paddingTop: Spacing.sm }]}>
             <TouchableOpacity
               style={styles.backButton}
               onPress={() => navigation.goBack()}
@@ -148,14 +147,19 @@ const RegisterScreen = ({ navigation }) => {
             <Text style={styles.headerSubtitle}>Fill in your details to get started</Text>
           </Animated.View>
 
+          <ScrollView
+            contentContainerStyle={[styles.scrollContent, { paddingTop: 0 }]}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
           {/* Form */}
           <Animated.View style={[styles.form, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
-            {error && (
+            {isFocused && error ? (
               <View style={styles.errorBanner}>
-                <Icon name="alert-circle" size={18} color={Colors.error} />
+                <Icon name="alert-circle" size={20} color={Colors.error} />
                 <Text style={styles.errorBannerText}>{error}</Text>
               </View>
-            )}
+            ) : null}
 
             {renderInput('account-outline', 'Full Name', fullName, setFullName, 'fullName', {
               label: 'Full Name *',
@@ -253,6 +257,7 @@ const RegisterScreen = ({ navigation }) => {
               </Text>
             </TouchableOpacity>
           </Animated.View>
+          </ScrollView>
       </ScreenWrapper>
     );
   };

@@ -55,6 +55,19 @@ const ScreenWrapper = ({
         backgroundColor="transparent"
         translucent={true}
       />
+      {/* Sticky Status Bar Background */}
+      <View 
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: safeTop,
+          backgroundColor: Colors.background,
+          zIndex: 999,
+          elevation: 0,
+        }} 
+      />
       {inner}
     </View>
   );

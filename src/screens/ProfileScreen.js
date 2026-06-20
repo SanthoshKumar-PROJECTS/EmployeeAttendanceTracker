@@ -12,7 +12,6 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
-  ActivityIndicator,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors } from '../theme/colors';
@@ -20,10 +19,21 @@ import { Spacing } from '../theme/spacing';
 import { Fonts } from '../theme/fonts';
 import useAuthStore from '../store/useAuthStore';
 import useAttendanceStore from '../store/useAttendanceStore';
-import ExportService from '../services/ExportService';
-import CameraService from '../services/CameraService';
 import ScreenWrapper from '../components/ScreenWrapper';
 import { scale, verticalScale, moderateScale } from '../utils/responsive';
+
+const MenuItem = ({ icon, label, value, color = Colors.textPrimary, onPress, rightIcon = 'chevron-right' }) => (
+  <TouchableOpacity style={styles.menuItem} onPress={onPress} activeOpacity={0.7}>
+    <View style={[styles.menuIconContainer, { backgroundColor: (color || Colors.primary) + '15' }]}>
+      <Icon name={icon} size={20} color={color} />
+    </View>
+    <View style={styles.menuContent}>
+      <Text style={styles.menuLabel}>{label}</Text>
+      {value && <Text style={styles.menuValue}>{value}</Text>}
+    </View>
+    <Icon name={rightIcon} size={20} color={Colors.textMuted} />
+  </TouchableOpacity>
+);
 
 const ProfileScreen = ({ navigation }) => {
   const { user, logout, updateProfile, changePassword } = useAuthStore();
@@ -32,10 +42,7 @@ const ProfileScreen = ({ navigation }) => {
   const [editName, setEditName] = useState(user?.fullName || '');
   const [editDept, setEditDept] = useState(user?.department || '');
   const [editPhone, setEditPhone] = useState(user?.phone || '');
-  const [isExporting, setIsExporting] = useState(false);
-  const [storageSize, setStorageSize] = useState('0 B');
-
-  console.log(user, 'userdata')
+  const [errors, setErrors] = useState({});
 
   // Change password state
   const [showChangePassword, setShowChangePassword] = useState(false);
@@ -46,27 +53,23 @@ const ProfileScreen = ({ navigation }) => {
   const [showNewPwd, setShowNewPwd] = useState(false);
   const [showConfirmPwd, setShowConfirmPwd] = useState(false);
 
-  useEffect(() => {
-    loadStorageInfo();
-  }, []);
-
-
-  const loadStorageInfo = async () => {
-    if (user) {
-      const size = await CameraService.getSelfieStorageSize(user.id);
-      if (size < 1024) setStorageSize(`${size} B`);
-      else if (size < 1024 * 1024) setStorageSize(`${(size / 1024).toFixed(1)} KB`);
-      else setStorageSize(`${(size / (1024 * 1024)).toFixed(1)} MB`);
+  const validateProfile = () => {
+    const newErrors = {};
+    if (!editName.trim()) newErrors.fullName = 'Full name is required';
+    
+    const cleanedPhone = editPhone.trim().replace(/[^0-9]/g, '');
+    if (cleanedPhone && cleanedPhone.length !== 10) {
+      newErrors.phone = 'Phone number must be exactly 10 digits';
     }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
   const handleSaveProfile = async () => {
-    const cleanedPhone = editPhone.trim().replace(/[^0-9]/g, '');
-    if (cleanedPhone && cleanedPhone.length !== 10) {
-      Alert.alert('Error', 'Phone number must be exactly 10 digits');
-      return;
-    }
+    if (!validateProfile()) return;
 
+    const cleanedPhone = editPhone.trim().replace(/[^0-9]/g, '');
     const result = await updateProfile({
       fullName: editName.trim(),
       department: editDept.trim(),
@@ -74,25 +77,32 @@ const ProfileScreen = ({ navigation }) => {
     });
     if (result.success) {
       setIsEditing(false);
+      setErrors({});
       Alert.alert('Success', 'Profile updated successfully');
     } else {
       Alert.alert('Error', result.error);
     }
   };
 
+  const validatePassword = () => {
+    const newErrors = {};
+    if (!currentPwd) newErrors.currentPwd = 'Current password is required';
+    
+    if (!newPwd) {
+      newErrors.newPwd = 'New password is required';
+    } else if (strength.level < 4) {
+      newErrors.newPwd = 'Password must be Strong';
+    }
+    
+    if (!confirmPwd) newErrors.confirmPwd = 'Confirm password is required';
+    else if (newPwd !== confirmPwd) newErrors.confirmPwd = 'New passwords do not match';
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   const handleChangePassword = async () => {
-    if (!currentPwd || !newPwd || !confirmPwd) {
-      Alert.alert('Error', 'All fields are required');
-      return;
-    }
-    if (newPwd !== confirmPwd) {
-      Alert.alert('Error', 'New passwords do not match');
-      return;
-    }
-    if (newPwd.length < 6) {
-      Alert.alert('Error', 'New password must be at least 6 characters');
-      return;
-    }
+    if (!validatePassword()) return;
 
     const result = await changePassword(currentPwd, newPwd);
     if (result.success) {
@@ -101,24 +111,35 @@ const ProfileScreen = ({ navigation }) => {
       setCurrentPwd('');
       setNewPwd('');
       setConfirmPwd('');
+      setErrors({});
+      setConfirmPwd('');
     } else {
       Alert.alert('Error', result.error);
     }
   };
 
-  const handleExport = async () => {
-    setIsExporting(true);
-    try {
-      const result = await ExportService.shareExport(user.id);
-      if (result.success) {
-        Alert.alert('Exported', `${result.recordCount} records exported successfully.`);
-      }
-    } catch (error) {
-      Alert.alert('Export Failed', error.message);
-    } finally {
-      setIsExporting(false);
+  const getPasswordStrength = () => {
+    if (!newPwd) return { level: 0, label: '', color: Colors.textMuted, missing: [] };
+    let score = 0;
+    const missing = [];
+
+    if (newPwd.length >= 6) {
+      score += 1;
+    } else {
+      missing.push('6+ chars');
     }
+
+    if (/[A-Z]/.test(newPwd)) { score++; } else { missing.push('Uppercase'); }
+    if (/[0-9]/.test(newPwd)) { score++; } else { missing.push('Number'); }
+    if (/[^A-Za-z0-9]/.test(newPwd)) { score++; } else { missing.push('Symbol'); }
+
+    if (missing.length === 0) return { level: 4, label: 'Strong', color: Colors.success, missing: [] };
+    if (score <= 1) return { level: 1, label: 'Weak', color: Colors.error, missing };
+    if (score <= 2) return { level: 2, label: 'Fair', color: Colors.warning, missing };
+    return { level: 3, label: 'Good', color: Colors.accent, missing };
   };
+
+  const strength = getPasswordStrength();
 
   const handleLogout = () => {
     Alert.alert(
@@ -137,24 +158,10 @@ const ProfileScreen = ({ navigation }) => {
       ]
     );
   };
-
-  const MenuItem = ({ icon, label, value, color = Colors.textPrimary, onPress, rightIcon = 'chevron-right' }) => (
-    <TouchableOpacity style={styles.menuItem} onPress={onPress} activeOpacity={0.7}>
-      <View style={[styles.menuIconContainer, { backgroundColor: (color || Colors.primary) + '15' }]}>
-        <Icon name={icon} size={20} color={color} />
-      </View>
-      <View style={styles.menuContent}>
-        <Text style={styles.menuLabel}>{label}</Text>
-        {value && <Text style={styles.menuValue}>{value}</Text>}
-      </View>
-      <Icon name={rightIcon} size={20} color={Colors.textMuted} />
-    </TouchableOpacity>
-  );
-
   return (
-    <ScreenWrapper scrollable={true} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-      {/* Header */}
-      <View style={styles.header}>
+    <ScreenWrapper scrollable={false}>
+      {/* Sticky Header */}
+      <View style={[styles.header, { paddingHorizontal: Spacing.screenPadding.horizontal, paddingTop: Spacing.sm }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={Spacing.hitSlop}>
           <Icon name="arrow-left" size={24} color={Colors.textPrimary} />
         </TouchableOpacity>
@@ -163,6 +170,8 @@ const ProfileScreen = ({ navigation }) => {
           <Text style={styles.editButton}>{isEditing ? 'Save' : 'Edit'}</Text>
         </TouchableOpacity>
       </View>
+
+      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingTop: 0 }]} showsVerticalScrollIndicator={false}>
 
       {/* Profile Card */}
       <View style={styles.profileCard}>
@@ -178,12 +187,17 @@ const ProfileScreen = ({ navigation }) => {
         {isEditing ? (
           <View style={styles.editForm}>
             <TextInput
-              style={styles.editInput}
+              style={[styles.editInput, errors.fullName && styles.inputError]}
               value={editName}
-              onChangeText={setEditName}
-              placeholder="Full Name"
+              onChangeText={(text) => {
+                setEditName(text);
+                if (errors.fullName) setErrors(prev => ({ ...prev, fullName: '' }));
+              }}
+              placeholder="Full Name *"
               placeholderTextColor={Colors.textMuted}
             />
+            {errors.fullName ? <Text style={styles.fieldError}>{errors.fullName}</Text> : null}
+
             <TextInput
               style={styles.editInput}
               value={editDept}
@@ -191,15 +205,20 @@ const ProfileScreen = ({ navigation }) => {
               placeholder="Department"
               placeholderTextColor={Colors.textMuted}
             />
+
             <TextInput
-              style={styles.editInput}
+              style={[styles.editInput, errors.phone && styles.inputError]}
               value={editPhone}
-              onChangeText={(text) => setEditPhone(text.replace(/[^0-9]/g, ''))}
+              onChangeText={(text) => {
+                setEditPhone(text.replace(/[^0-9]/g, ''));
+                if (errors.phone) setErrors(prev => ({ ...prev, phone: '' }));
+              }}
               placeholder="Phone"
               placeholderTextColor={Colors.textMuted}
               keyboardType="phone-pad"
               maxLength={10}
             />
+            {errors.phone ? <Text style={styles.fieldError}>{errors.phone}</Text> : null}
           </View>
         ) : (
           <>
@@ -224,78 +243,96 @@ const ProfileScreen = ({ navigation }) => {
           icon="lock-reset"
           label="Change Password"
           color={Colors.primary}
-          onPress={() => setShowChangePassword(!showChangePassword)}
+          onPress={() => {
+            setShowChangePassword(!showChangePassword);
+            setErrors({});
+            setCurrentPwd('');
+            setNewPwd('');
+            setConfirmPwd('');
+          }}
           rightIcon={showChangePassword ? 'chevron-up' : 'chevron-down'}
         />
         {showChangePassword && (
           <View style={styles.changePasswordSection}>
-            <View style={styles.pwdInputWrapper}>
+            <View style={[styles.pwdInputWrapper, errors.currentPwd && styles.inputError]}>
               <TextInput
                 style={styles.pwdInput}
-                placeholder="Current Password"
+                placeholder="Current Password *"
                 placeholderTextColor={Colors.textMuted}
                 value={currentPwd}
-                onChangeText={setCurrentPwd}
+                onChangeText={(text) => {
+                  setCurrentPwd(text);
+                  if (errors.currentPwd) setErrors(prev => ({ ...prev, currentPwd: '' }));
+                }}
                 secureTextEntry={!showCurrentPwd}
               />
               <TouchableOpacity style={styles.pwdIcon} onPress={() => setShowCurrentPwd(!showCurrentPwd)}>
                 <Icon name={showCurrentPwd ? "eye-off" : "eye"} size={20} color={Colors.textMuted} />
               </TouchableOpacity>
             </View>
+            {errors.currentPwd ? <Text style={styles.fieldError}>{errors.currentPwd}</Text> : null}
 
-            <View style={styles.pwdInputWrapper}>
+            <View style={[styles.pwdInputWrapper, errors.newPwd && styles.inputError]}>
               <TextInput
                 style={styles.pwdInput}
-                placeholder="New Password"
+                placeholder="New Password *"
                 placeholderTextColor={Colors.textMuted}
                 value={newPwd}
-                onChangeText={setNewPwd}
+                onChangeText={(text) => {
+                  setNewPwd(text);
+                  if (errors.newPwd) setErrors(prev => ({ ...prev, newPwd: '' }));
+                }}
                 secureTextEntry={!showNewPwd}
               />
               <TouchableOpacity style={styles.pwdIcon} onPress={() => setShowNewPwd(!showNewPwd)}>
                 <Icon name={showNewPwd ? "eye-off" : "eye"} size={20} color={Colors.textMuted} />
               </TouchableOpacity>
             </View>
+            {errors.newPwd ? <Text style={styles.fieldError}>{errors.newPwd}</Text> : null}
+            {newPwd.length > 0 && (
+              <View style={styles.strengthContainer}>
+                <View style={styles.strengthBar}>
+                  {[1, 2, 3, 4].map((level) => (
+                    <View
+                      key={level}
+                      style={[
+                        styles.strengthSegment,
+                        { backgroundColor: level <= strength.level ? strength.color : Colors.surfaceLight },
+                      ]}
+                    />
+                  ))}
+                </View>
+                <Text style={[styles.strengthLabel, { color: strength.color }]}>{strength.label}</Text>
+              </View>
+            )}
+            {newPwd.length > 0 && strength.missing.length > 0 && (
+              <Text style={styles.passwordHint}>
+                Needed: {strength.missing.join(', ')}
+              </Text>
+            )}
 
-            <View style={styles.pwdInputWrapper}>
+            <View style={[styles.pwdInputWrapper, errors.confirmPwd && styles.inputError]}>
               <TextInput
                 style={styles.pwdInput}
-                placeholder="Confirm New Password"
+                placeholder="Confirm New Password *"
                 placeholderTextColor={Colors.textMuted}
                 value={confirmPwd}
-                onChangeText={setConfirmPwd}
+                onChangeText={(text) => {
+                  setConfirmPwd(text);
+                  if (errors.confirmPwd) setErrors(prev => ({ ...prev, confirmPwd: '' }));
+                }}
                 secureTextEntry={!showConfirmPwd}
               />
               <TouchableOpacity style={styles.pwdIcon} onPress={() => setShowConfirmPwd(!showConfirmPwd)}>
                 <Icon name={showConfirmPwd ? "eye-off" : "eye"} size={20} color={Colors.textMuted} />
               </TouchableOpacity>
             </View>
+            {errors.confirmPwd ? <Text style={styles.fieldError}>{errors.confirmPwd}</Text> : null}
             <TouchableOpacity style={styles.changePwdButton} onPress={handleChangePassword}>
               <Text style={styles.changePwdButtonText}>Update Password</Text>
             </TouchableOpacity>
           </View>
         )}
-      </View>
-
-      {/* Data Section */}
-      <Text style={styles.sectionTitle}>Data</Text>
-      <View style={styles.menuSection}>
-        <MenuItem
-          icon="export"
-          label="Export Attendance Data"
-          value="JSON format"
-          color={Colors.accent}
-          onPress={handleExport}
-          rightIcon={isExporting ? 'loading' : 'download'}
-        />
-        <MenuItem
-          icon="folder-image"
-          label="Selfie Storage"
-          value={storageSize}
-          color={Colors.success}
-          onPress={() => { }}
-          rightIcon="information-outline"
-        />
       </View>
 
       {/* App Info */}
@@ -310,12 +347,12 @@ const ProfileScreen = ({ navigation }) => {
           rightIcon=""
         />
         <MenuItem
-          icon="database"
-          label="Storage"
-          value="Local (SQLite)"
+          icon="cog"
+          label="Settings"
+          value=""
           color={Colors.textSecondary}
-          onPress={() => { }}
-          rightIcon=""
+          onPress={() => navigation.navigate('Settings')}
+          rightIcon="chevron-right"
         />
       </View>
 
@@ -325,14 +362,14 @@ const ProfileScreen = ({ navigation }) => {
         <Text style={styles.logoutText}>Logout</Text>
       </TouchableOpacity>
 
-      <View style={{ height: verticalScale(40) }} />
+      </ScrollView>
     </ScreenWrapper>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  scrollContent: { paddingHorizontal: Spacing.screenPadding.horizontal, paddingTop: Spacing.xl, paddingBottom: 100 },
+  scrollContent: { paddingHorizontal: Spacing.screenPadding.horizontal, paddingTop: Spacing.xl, paddingBottom: 20 },
   header: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.xl,
   },
@@ -414,6 +451,22 @@ const styles = StyleSheet.create({
   pwdIcon: {
     padding: Spacing.md,
   },
+  inputError: {
+    borderColor: Colors.error,
+  },
+  fieldError: {
+    fontFamily: Fonts.medium,
+    color: Colors.error,
+    fontSize: moderateScale(12),
+    marginTop: -Spacing.xs,
+    marginBottom: Spacing.sm,
+    marginLeft: 4,
+  },
+  strengthContainer: { flexDirection: 'row', alignItems: 'center', marginTop: Spacing.xs, marginBottom: Spacing.sm },
+  strengthBar: { flex: 1, flexDirection: 'row', gap: 4, marginRight: Spacing.sm },
+  strengthSegment: { height: 4, flex: 1, borderRadius: 2 },
+  strengthLabel: { fontFamily: Fonts.medium, fontSize: moderateScale(11), width: 45, textAlign: 'right' },
+  passwordHint: { fontFamily: Fonts.regular, fontSize: moderateScale(11), color: Colors.textMuted, marginTop: -Spacing.xs, marginBottom: Spacing.sm },
   changePwdButton: {
     backgroundColor: Colors.primary, borderRadius: Spacing.radius.sm,
     paddingVertical: Spacing.md, alignItems: 'center', marginTop: Spacing.xs,

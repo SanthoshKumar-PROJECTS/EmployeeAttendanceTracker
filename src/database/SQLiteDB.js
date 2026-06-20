@@ -45,6 +45,8 @@ const CREATE_TABLES = [
     selfiePath TEXT DEFAULT '',
     isWithinGeofence INTEGER DEFAULT 1,
     geofenceZone TEXT DEFAULT '',
+    isCheckOutWithinGeofence INTEGER DEFAULT 1,
+    checkOutGeofenceZone TEXT DEFAULT '',
     status TEXT DEFAULT 'checked_in',
     notes TEXT DEFAULT '',
     createdAt TEXT NOT NULL,
@@ -58,6 +60,7 @@ const CREATE_TABLES = [
     name TEXT NOT NULL,
     latitude REAL NOT NULL,
     longitude REAL NOT NULL,
+    locationName TEXT DEFAULT '',
     radiusMeters REAL DEFAULT 200,
     isActive INTEGER DEFAULT 1,
     createdAt TEXT NOT NULL,
@@ -124,6 +127,30 @@ export const getDatabase = async () => {
     try {
       await dbInstance.executeSql(`ALTER TABLE users ADD COLUMN fcmToken TEXT DEFAULT ''`);
       console.log('[SQLiteDB] Migration: added fcmToken column to users table');
+    } catch (e) {
+      // Column already exists — safe to ignore
+    }
+
+    // Migration: add checkOutGeofenceZone column to attendance table
+    try {
+      await dbInstance.executeSql(`ALTER TABLE attendance ADD COLUMN checkOutGeofenceZone TEXT DEFAULT ''`);
+      console.log('[SQLiteDB] Migration: added checkOutGeofenceZone column to attendance table');
+    } catch (e) {
+      // Column already exists — safe to ignore
+    }
+
+    // Migration: add isCheckOutWithinGeofence column to attendance table
+    try {
+      await dbInstance.executeSql(`ALTER TABLE attendance ADD COLUMN isCheckOutWithinGeofence INTEGER DEFAULT 1`);
+      console.log('[SQLiteDB] Migration: added isCheckOutWithinGeofence column to attendance table');
+    } catch (e) {
+      // Column already exists — safe to ignore
+    }
+
+    // Migration: add locationName column to geofence_zones table
+    try {
+      await dbInstance.executeSql(`ALTER TABLE geofence_zones ADD COLUMN locationName TEXT DEFAULT ''`);
+      console.log('[SQLiteDB] Migration: added locationName column to geofence_zones table');
     } catch (e) {
       // Column already exists — safe to ignore
     }

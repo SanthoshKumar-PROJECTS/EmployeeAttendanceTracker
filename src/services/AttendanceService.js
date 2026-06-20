@@ -8,7 +8,6 @@ import uuid from 'react-native-uuid';
 import AttendanceRepository from '../database/repositories/AttendanceRepository';
 import LocationService from './LocationService';
 import GeofenceService from './GeofenceService';
-import CameraService from './CameraService';
 import { today, now } from '../utils/dateUtils';
 
 /**
@@ -35,8 +34,8 @@ const calculateTotalHoursFromSessions = (sessions) => {
  * 4. Check geofence
  * 5. Save attendance record
  */
-export const checkIn = async (userId, { selfiePath = null, skipGeofence = false } = {}) => {
-  // 1. Auto-close stale sessions from previous days
+export const checkIn = async (userId, { selfiePath, skipGeofence, zoneName = '' } = {}) => {
+  // 1. Auto-checkout stale sessions from previous days
   await AttendanceRepository.autoCheckOutStaleRecords(userId);
 
   // 2. Check if there's already an active session (can't double check-in)
@@ -54,7 +53,7 @@ export const checkIn = async (userId, { selfiePath = null, skipGeofence = false 
   }
 
   // 4. Check geofence
-  let geofenceResult = { isInsideAny: true, matchedZone: null };
+  let geofenceResult = { isInsideAny: !skipGeofence, matchedZone: null };
   if (!skipGeofence) {
     geofenceResult = await GeofenceService.checkPosition(location);
     if (!geofenceResult.isInsideAny) {
@@ -77,7 +76,7 @@ export const checkIn = async (userId, { selfiePath = null, skipGeofence = false 
     checkInLng: location.longitude,
     selfiePath: selfiePath || '',
     isWithinGeofence: geofenceResult.isInsideAny,
-    geofenceZone: geofenceResult.matchedZone ? geofenceResult.matchedZone.name : '',
+    geofenceZone: zoneName || (geofenceResult.matchedZone ? geofenceResult.matchedZone.name : 'Unknown Zone'),
   });
 
   return record;
@@ -87,7 +86,7 @@ export const checkIn = async (userId, { selfiePath = null, skipGeofence = false 
  * Perform Check-Out
  * Finds the currently active session and closes it.
  */
-export const checkOut = async (userId) => {
+export const checkOut = async (userId, checkOutZoneName = '', isInsideGeofence = true) => {
   // 1. Find the active (open) session
   const activeSession = await AttendanceRepository.getActiveSession(userId);
   if (!activeSession) {
@@ -107,6 +106,8 @@ export const checkOut = async (userId) => {
   const updatedRecord = await AttendanceRepository.checkOut(activeSession.id, {
     checkOutLat: location.latitude,
     checkOutLng: location.longitude,
+    checkOutGeofenceZone: checkOutZoneName,
+    isCheckOutWithinGeofence: isInsideGeofence,
   });
 
   return updatedRecord;

@@ -22,10 +22,10 @@ import GeofenceService from '../services/GeofenceService';
 import NotificationService from '../services/NotificationService';
 import LocationService from '../services/LocationService';
 import { formatDistance } from '../utils/geofencing';
-import uuid from 'react-native-uuid';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import useAuthStore from '../store/useAuthStore';
 import ScreenWrapper from '../components/ScreenWrapper';
 import { scale, verticalScale, moderateScale } from '../utils/responsive';
+import uuid from 'react-native-uuid';
 
 const mapDarkStyle = [
   { "elementType": "geometry", "stylers": [{ "color": "#12121c" }] },
@@ -45,8 +45,10 @@ const SettingsScreen = ({ navigation }) => {
   const [zones, setZones] = useState([]);
   const [currentLocation, setCurrentLocation] = useState(null);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  const [showAddZone, setShowAddZone] = useState(false);
+  const [isFormVisible, setIsFormVisible] = useState(false);
+  const [editingZoneId, setEditingZoneId] = useState(null);
   const [newZoneName, setNewZoneName] = useState('');
+  const [newZoneLocationName, setNewZoneLocationName] = useState('');
   const [newZoneLat, setNewZoneLat] = useState('');
   const [newZoneLng, setNewZoneLng] = useState('');
   const [newZoneRadius, setNewZoneRadius] = useState('200');
@@ -93,9 +95,33 @@ const SettingsScreen = ({ navigation }) => {
     );
   };
 
-  const handleAddZone = async () => {
+  const handleAddClick = () => {
+    if (zones.length >= 5) {
+      Alert.alert('Limit Reached', 'You can only configure up to 5 geofence zones.');
+      return;
+    }
+    setEditingZoneId(null);
+    setNewZoneName('');
+    setNewZoneLocationName('');
+    setNewZoneLat('');
+    setNewZoneLng('');
+    setNewZoneRadius('200');
+    setIsFormVisible(!isFormVisible);
+  };
+
+  const handleEditZone = (zone) => {
+    setEditingZoneId(zone.id);
+    setNewZoneName(zone.name);
+    setNewZoneLocationName(zone.locationName || '');
+    setNewZoneLat(zone.latitude.toString());
+    setNewZoneLng(zone.longitude.toString());
+    setNewZoneRadius(zone.radiusMeters.toString());
+    setIsFormVisible(true);
+  };
+
+  const handleSaveZone = async () => {
     if (!newZoneName.trim() || !newZoneLat || !newZoneLng) {
-      Alert.alert('Error', 'Name, latitude, and longitude are required');
+      Alert.alert('Error', 'Name and location are required');
       return;
     }
 
@@ -104,25 +130,40 @@ const SettingsScreen = ({ navigation }) => {
     const radius = parseInt(newZoneRadius, 10) || 200;
 
     if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-      Alert.alert('Error', 'Enter valid coordinates');
+      Alert.alert('Error', 'Invalid coordinates selected');
       return;
     }
 
-    await GeofenceService.addZone({
-      id: `zone_${uuid.v4().substring(0, 8)}`,
-      name: newZoneName.trim(),
-      latitude: lat,
-      longitude: lng,
-      radiusMeters: radius,
-    });
+    if (editingZoneId) {
+      await GeofenceService.updateZone(editingZoneId, {
+        name: newZoneName.trim(),
+        locationName: newZoneLocationName,
+        latitude: lat,
+        longitude: lng,
+        radiusMeters: radius,
+      });
+      Alert.alert('Success', 'Geofence zone updated');
+    } else {
+      if (zones.length >= 5) return;
+      await GeofenceService.addZone({
+        id: `zone_${uuid.v4().substring(0, 8)}`,
+        name: newZoneName.trim(),
+        locationName: newZoneLocationName,
+        latitude: lat,
+        longitude: lng,
+        radiusMeters: radius,
+      });
+      Alert.alert('Success', 'Geofence zone added');
+    }
 
-    setShowAddZone(false);
+    setIsFormVisible(false);
+    setEditingZoneId(null);
     setNewZoneName('');
+    setNewZoneLocationName('');
     setNewZoneLat('');
     setNewZoneLng('');
     setNewZoneRadius('200');
     loadZones();
-    Alert.alert('Success', 'Geofence zone added');
   };
 
   const handleToggleNotifications = async (value) => {
@@ -136,9 +177,9 @@ const SettingsScreen = ({ navigation }) => {
   };
 
   return (
-    <ScreenWrapper scrollable={true} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Header */}
-        <View style={styles.header}>
+    <ScreenWrapper scrollable={false}>
+        {/* Sticky Header */}
+        <View style={[styles.header, { paddingHorizontal: Spacing.screenPadding.horizontal, paddingTop: Spacing.sm }]}>
           <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={Spacing.hitSlop}>
             <Icon name="arrow-left" size={24} color={Colors.textPrimary} />
           </TouchableOpacity>
@@ -146,16 +187,18 @@ const SettingsScreen = ({ navigation }) => {
           <View style={{ width: scale(24) }} />
         </View>
 
+        <ScrollView contentContainerStyle={[styles.scrollContent, { paddingTop: 0 }]} showsVerticalScrollIndicator={false}>
+
         {/* Geofence Zones Section */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Geofence Zones</Text>
-          <TouchableOpacity onPress={() => setShowAddZone(!showAddZone)}>
-            <Icon name={showAddZone ? 'close' : 'plus-circle'} size={22} color={Colors.primary} />
+          <Text style={styles.sectionTitle}>Geofence Zones ({zones.length}/5)</Text>
+          <TouchableOpacity onPress={handleAddClick}>
+            <Icon name={isFormVisible && !editingZoneId ? 'close' : 'plus-circle'} size={22} color={zones.length >= 5 ? Colors.textMuted : Colors.primary} />
           </TouchableOpacity>
         </View>
 
-        {/* Add Zone Form */}
-        {showAddZone && (
+        {/* Add/Edit Zone Form */}
+        {isFormVisible && (
           <View style={styles.addZoneCard}>
             <TextInput
               style={styles.zoneInput}
@@ -164,74 +207,36 @@ const SettingsScreen = ({ navigation }) => {
               value={newZoneName}
               onChangeText={setNewZoneName}
             />
-            {/* Mini Map Tap-to-Locate */}
-            <View style={styles.miniMapContainer}>
-              <Text style={styles.miniMapHelp}>Tap map to set Lat/Lng, drag marker to adjust</Text>
-              <MapView
-                provider={PROVIDER_GOOGLE}
-                style={styles.miniMap}
-                initialRegion={{
-                  latitude: currentLocation?.latitude || 12.9716,
-                  longitude: currentLocation?.longitude || 77.5946,
-                  latitudeDelta: 0.015,
-                  longitudeDelta: 0.015,
-                }}
-                customMapStyle={mapDarkStyle}
-                onPress={(e) => {
-                  const { latitude, longitude } = e.nativeEvent.coordinate;
-                  setNewZoneLat(latitude.toFixed(6).toString());
-                  setNewZoneLng(longitude.toFixed(6).toString());
-                }}
-              >
-                {/* User Location Marker */}
-                {currentLocation && (
-                  <Marker
-                    coordinate={{
-                      latitude: currentLocation.latitude,
-                      longitude: currentLocation.longitude,
-                    }}
-                    title="Your Location"
-                  >
-                    <Icon name="account" size={24} color={Colors.accent} />
-                  </Marker>
-                )}
+            
+            <TouchableOpacity 
+              style={[styles.zoneInput, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: Spacing.sm }]} 
+              onPress={() => {
+                navigation.navigate('LocationPicker', {
+                  initialCoordinate: newZoneLat && newZoneLng ? { latitude: parseFloat(newZoneLat), longitude: parseFloat(newZoneLng) } : currentLocation,
+                  onLocationSelected: (lat, lng, name) => {
+                    setNewZoneLat(lat.toString());
+                    setNewZoneLng(lng.toString());
+                    if (name) {
+                      setNewZoneLocationName(name);
+                      if (!newZoneName) setNewZoneName(name);
+                    }
+                  }
+                });
+              }}
+            >
+              <View style={{ flex: 1, paddingRight: Spacing.sm }}>
+                <Text style={{ color: newZoneLocationName || newZoneLat ? Colors.textPrimary : Colors.textMuted, fontFamily: newZoneLocationName ? Fonts.medium : Fonts.regular, marginBottom: newZoneLat ? 2 : 0 }} numberOfLines={1}>
+                  {newZoneLocationName ? newZoneLocationName : (newZoneLat ? 'Location Selected' : 'Pick Location on Map')}
+                </Text>
+                {newZoneLat ? (
+                  <Text style={{ color: Colors.textMuted, fontSize: moderateScale(10), fontFamily: Fonts.regular }}>
+                    Lat: {parseFloat(newZoneLat).toFixed(6)}, Lng: {parseFloat(newZoneLng).toFixed(6)}
+                  </Text>
+                ) : null}
+              </View>
+              <Icon name="map-marker-radius" size={24} color={Colors.primary} />
+            </TouchableOpacity>
 
-                {/* Selected Point Marker */}
-                {newZoneLat && newZoneLng && !isNaN(parseFloat(newZoneLat)) && !isNaN(parseFloat(newZoneLng)) && (
-                  <Marker
-                    coordinate={{
-                      latitude: parseFloat(newZoneLat),
-                      longitude: parseFloat(newZoneLng),
-                    }}
-                    title="New Zone Center"
-                    draggable
-                    onDragEnd={(e) => {
-                      const { latitude, longitude } = e.nativeEvent.coordinate;
-                      setNewZoneLat(latitude.toFixed(6).toString());
-                      setNewZoneLng(longitude.toFixed(6).toString());
-                    }}
-                  />
-                )}
-              </MapView>
-            </View>
-            <View style={styles.coordRow}>
-              <TextInput
-                style={[styles.zoneInput, styles.coordInput]}
-                placeholder="Latitude"
-                placeholderTextColor={Colors.textMuted}
-                value={newZoneLat}
-                onChangeText={setNewZoneLat}
-                keyboardType="decimal-pad"
-              />
-              <TextInput
-                style={[styles.zoneInput, styles.coordInput]}
-                placeholder="Longitude"
-                placeholderTextColor={Colors.textMuted}
-                value={newZoneLng}
-                onChangeText={setNewZoneLng}
-                keyboardType="decimal-pad"
-              />
-            </View>
             <TextInput
               style={styles.zoneInput}
               placeholder="Radius in meters (default: 200)"
@@ -240,10 +245,16 @@ const SettingsScreen = ({ navigation }) => {
               onChangeText={setNewZoneRadius}
               keyboardType="number-pad"
             />
-            <TouchableOpacity style={styles.addButton} onPress={handleAddZone}>
-              <Icon name="map-marker-plus" size={18} color={Colors.white} />
-              <Text style={styles.addButtonText}>Add Zone</Text>
+            <TouchableOpacity style={styles.addButton} onPress={handleSaveZone}>
+              <Icon name={editingZoneId ? "content-save" : "map-marker-plus"} size={18} color={Colors.white} />
+              <Text style={styles.addButtonText}>{editingZoneId ? 'Save Changes' : 'Add Zone'}</Text>
             </TouchableOpacity>
+            
+            {editingZoneId && (
+              <TouchableOpacity style={[styles.addButton, { backgroundColor: Colors.surfaceLight, marginTop: Spacing.sm }]} onPress={() => { setIsFormVisible(false); setEditingZoneId(null); }}>
+                <Text style={[styles.addButtonText, { color: Colors.textPrimary }]}>Cancel</Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
 
@@ -264,15 +275,26 @@ const SettingsScreen = ({ navigation }) => {
                       size={18}
                       color={zone.isActive ? Colors.success : Colors.textMuted}
                     />
-                    <Text style={[styles.zoneName, !zone.isActive && styles.zoneInactive]}>
+                    <Text style={[styles.zoneName, !zone.isActive && styles.zoneInactive, { flexShrink: 1 }]} numberOfLines={2} ellipsizeMode="tail">
                       {zone.name}
                     </Text>
                   </View>
+                  {zone.locationName ? (
+                    <Text style={[styles.zoneCoords, { color: Colors.textSecondary, marginBottom: 2, fontFamily: Fonts.medium }]} numberOfLines={2}>
+                      {zone.locationName}
+                    </Text>
+                  ) : null}
                   <Text style={styles.zoneCoords}>
-                    {zone.latitude.toFixed(4)}, {zone.longitude.toFixed(4)} • {zone.radiusMeters}m radius
+                    Radius: {zone.radiusMeters}m
+                  </Text>
+                  <Text style={[styles.zoneCoords, { fontSize: moderateScale(10), marginTop: 0 }]}>
+                    Lat: {zone.latitude.toFixed(6)}, Lng: {zone.longitude.toFixed(6)}
                   </Text>
                 </View>
                 <View style={styles.zoneActions}>
+                  <TouchableOpacity onPress={() => handleEditZone(zone)} style={styles.deleteButton}>
+                    <Icon name="pencil" size={18} color={Colors.primary} />
+                  </TouchableOpacity>
                   <Switch
                     value={!!zone.isActive}
                     onValueChange={() => handleToggleZone(zone.id)}
@@ -314,25 +336,11 @@ const SettingsScreen = ({ navigation }) => {
           </View>
         </View>
 
-        {/* About Section */}
-        <Text style={styles.sectionTitleStandalone}>About</Text>
-        <View style={styles.section}>
-          <View style={styles.aboutItem}>
-            <Text style={styles.aboutLabel}>Storage Mode</Text>
-            <Text style={styles.aboutValue}>Local (SQLite + Secure Storage)</Text>
-          </View>
-          <View style={styles.aboutItem}>
-            <Text style={styles.aboutLabel}>Push Notifications</Text>
-            <Text style={styles.aboutValue}>Firebase Cloud Messaging</Text>
-          </View>
-          <View style={styles.aboutItem}>
-            <Text style={styles.aboutLabel}>Authentication</Text>
-            <Text style={styles.aboutValue}>Local + Biometric</Text>
-          </View>
-        </View>
+
 
         <View style={{ height: verticalScale(40) }} />
-      </ScreenWrapper>
+      </ScrollView>
+    </ScreenWrapper>
     );
   };
 
@@ -340,7 +348,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   scrollContent: {
     paddingHorizontal: Spacing.screenPadding.horizontal,
-    paddingTop: Spacing.xl, paddingBottom: 100,
+    paddingTop: Spacing.xl, paddingBottom: 20,
   },
   header: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
@@ -419,13 +427,7 @@ const styles = StyleSheet.create({
   settingLabel: { fontFamily: Fonts.medium, fontSize: moderateScale(15), color: Colors.textPrimary },
   settingDesc: { fontFamily: Fonts.regular, fontSize: moderateScale(12), color: Colors.textMuted, marginTop: 2 },
 
-  // About
-  aboutItem: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    padding: Spacing.base, borderBottomWidth: 1, borderBottomColor: Colors.divider,
-  },
-  aboutLabel: { fontFamily: Fonts.regular, fontSize: moderateScale(14), color: Colors.textSecondary },
-  aboutValue: { fontFamily: Fonts.medium, fontSize: moderateScale(13), color: Colors.textPrimary },
+
   miniMapContainer: {
     height: verticalScale(160),
     borderRadius: Spacing.radius.md,

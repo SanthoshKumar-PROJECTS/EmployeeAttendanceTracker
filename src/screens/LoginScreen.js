@@ -11,11 +11,9 @@ import {
   TouchableOpacity,
   StyleSheet,
   Animated,
-  KeyboardAvoidingView,
-  Platform,
   ActivityIndicator,
-  ScrollView,
 } from 'react-native';
+import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors } from '../theme/colors';
 import { Spacing } from '../theme/spacing';
@@ -31,7 +29,8 @@ const LoginScreen = ({ navigation }) => {
   const [emailError, setEmailError] = useState('');
   const [passwordError, setPasswordError] = useState('');
 
-  const { login, loginWithBiometric, isLoading, error, clearError, biometricInfo } = useAuthStore();
+  const { login, loginWithBiometric, isAuthLoading: isLoading, error, clearError, biometricInfo } = useAuthStore();
+  const isFocused = useIsFocused();
 
   // Animations
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -56,7 +55,13 @@ const LoginScreen = ({ navigation }) => {
         useNativeDriver: true,
       }),
     ]).start();
-  }, []);
+  }, [fadeAnim, slideAnim, logoScale]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      clearError();
+    }, [clearError])
+  );
 
   const validateEmail = (value) => {
     const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -123,12 +128,12 @@ const LoginScreen = ({ navigation }) => {
           {/* Form */}
           <Animated.View style={[styles.formSection, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
             {/* Error Banner */}
-            {error && (
+            {isFocused && error ? (
               <View style={styles.errorBanner}>
                 <Icon name="alert-circle" size={18} color={Colors.error} />
                 <Text style={styles.errorBannerText}>{error}</Text>
               </View>
-            )}
+            ) : null}
 
             {/* Email Input */}
             <View style={styles.inputGroup}>

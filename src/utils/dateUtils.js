@@ -102,8 +102,8 @@ export const calculateDuration = (startISO, endISO) => {
 export const calculateLiveDuration = (startISO) => {
   if (!startISO) return { hours: 0, minutes: 0, seconds: 0, formatted: '00:00:00' };
   const start = new Date(startISO);
-  const now = new Date();
-  const diffMs = now - start;
+  const currentDate = new Date();
+  const diffMs = currentDate - start;
   const hours = Math.floor(diffMs / (1000 * 60 * 60));
   const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
   const seconds = Math.floor((diffMs % (1000 * 60)) / 1000);

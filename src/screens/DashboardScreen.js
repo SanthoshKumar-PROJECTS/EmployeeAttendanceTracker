@@ -20,17 +20,17 @@ import { Spacing } from '../theme/spacing';
 import { Fonts } from '../theme/fonts';
 import useAuthStore from '../store/useAuthStore';
 import useAttendanceStore from '../store/useAttendanceStore';
-import { formatTime, calculateLiveDuration, getWeekDates, getISTGreeting } from '../utils/dateUtils';
+import { getWeekDates, getISTGreeting } from '../utils/dateUtils';
+import LiveTimer from '../components/LiveTimer';
 import ScreenWrapper from '../components/ScreenWrapper';
 import { scale, verticalScale, moderateScale } from '../utils/responsive';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const DashboardScreen = ({ navigation }) => {
-  const { user, logout } = useAuthStore();
-  const { todayStatus, dashboardStats, weeklyRecords, loadDashboardStats, loadWeeklyRecords, isLoading } = useAttendanceStore();
+  const { user } = useAuthStore();
+  const { todayStatus, dashboardStats, weeklyRecords, loadDashboardStats, loadWeeklyRecords } = useAttendanceStore();
   const [refreshing, setRefreshing] = useState(false);
-  const [liveTimer, setLiveTimer] = useState('00:00:00');
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -39,19 +39,9 @@ const DashboardScreen = ({ navigation }) => {
       loadWeeklyRecords(user.id);
     }
     Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }).start();
-  }, [user]);
+  }, [user, loadDashboardStats, loadWeeklyRecords, fadeAnim]);
 
-  // Live timer for checked-in state
-  useEffect(() => {
-    let interval;
-    if (todayStatus?.status === 'checked_in' && todayStatus?.activeSession?.checkInTime) {
-      interval = setInterval(() => {
-        const dur = calculateLiveDuration(todayStatus.activeSession.checkInTime);
-        setLiveTimer(dur.formatted);
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [todayStatus]);
+  // Live timer logic is now handled in isolation by <LiveTimer />
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -60,7 +50,7 @@ const DashboardScreen = ({ navigation }) => {
       await loadWeeklyRecords(user.id);
     }
     setRefreshing(false);
-  }, [user]);
+  }, [user, loadDashboardStats, loadWeeklyRecords]);
 
   const getStatusConfig = () => {
     const status = todayStatus?.status || 'not_checked_in';
@@ -96,21 +86,19 @@ const DashboardScreen = ({ navigation }) => {
   const weekDates = getWeekDates();
   const stats = dashboardStats;
 
-  // Build weekly data — check unique dates for attendance
-  const weekData = weekDates.map((day) => {
-    const hasRecord = weeklyRecords.some((r) => r.date === day.date);
-    return { ...day, hasAttendance: hasRecord };
-  });
+  // Build weekly data — memoized to prevent re-calculating on every render
+  const weekData = React.useMemo(() => {
+    return weekDates.map((day) => {
+      const hasRecord = weeklyRecords.some((r) => r.date === day.date);
+      return { ...day, hasAttendance: hasRecord };
+    });
+  }, [weekDates, weeklyRecords]);
 
   return (
-    <ScreenWrapper
-      scrollable={true}
-      contentContainerStyle={styles.scrollContent}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
-    >
-      <Animated.View style={{ opacity: fadeAnim }}>
-        {/* Header */}
-        <View style={styles.header}>
+    <ScreenWrapper scrollable={false}>
+      <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
+        {/* Sticky Header */}
+        <View style={[styles.header, { paddingHorizontal: Spacing.screenPadding.horizontal, paddingTop: Spacing.sm }]}>
           <View style={{ flex: 1, paddingRight: Spacing.md }}>
             <Text style={styles.greeting}>Good {getISTGreeting()},</Text>
             <Text style={styles.userName} numberOfLines={1} ellipsizeMode="tail">
@@ -122,6 +110,11 @@ const DashboardScreen = ({ navigation }) => {
           </TouchableOpacity>
         </View>
 
+        <ScrollView
+          contentContainerStyle={[styles.scrollContent, { paddingTop: 0 }]}
+          showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
+        >
         {/* Today's Status Card */}
         <View style={[styles.statusCard, { backgroundColor: statusConfig.bgColor, borderColor: statusConfig.color + '30' }]}>
           <View style={styles.statusLeft}>
@@ -131,7 +124,7 @@ const DashboardScreen = ({ navigation }) => {
             <View style={styles.statusInfo}>
               <Text style={[styles.statusLabel, { color: statusConfig.color }]}>{statusConfig.label}</Text>
               {todayStatus?.status === 'checked_in' && (
-                <Text style={styles.timerText}>{liveTimer}</Text>
+                <LiveTimer startTime={todayStatus?.activeSession?.checkInTime} textStyle={styles.timerText} />
               )}
               {todayStatus?.status === 'available' && todayStatus?.todaySessions?.length > 0 && (
                 <Text style={styles.statusTime}>
@@ -232,12 +225,13 @@ const DashboardScreen = ({ navigation }) => {
         <View style={styles.actionsSection}>
           <Text style={styles.sectionTitle}>Quick Actions</Text>
           <View style={styles.actionsGrid}>
-            <ActionTile icon="history" label="History" color={Colors.primary} onPress={() => navigation.navigate('History')} />
-            <ActionTile icon="export" label="Export" color={Colors.accent} onPress={() => navigation.navigate('Profile')} />
+            <ActionTile icon="map-marker-check" label="Check In" color={Colors.primary} onPress={() => navigation.navigate('CheckIn')} />
+            <ActionTile icon="history" label="History" color={Colors.accent} onPress={() => navigation.navigate('History')} />
             <ActionTile icon="map-marker-radius" label="Geofences" color={Colors.success} onPress={() => navigation.navigate('Settings')} />
-            <ActionTile icon="cog" label="Settings" color={Colors.warning} onPress={() => navigation.navigate('Settings')} />
+            <ActionTile icon="account" label="Profile" color={Colors.warning} onPress={() => navigation.navigate('Profile')} />
           </View>
         </View>
+        </ScrollView>
       </Animated.View>
     </ScreenWrapper>
   );
@@ -263,7 +257,7 @@ const ActionTile = ({ icon, label, color, onPress }) => (
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  scrollContent: { paddingHorizontal: Spacing.screenPadding.horizontal, paddingTop: Spacing.xl, paddingBottom: 100 },
+  scrollContent: { paddingHorizontal: Spacing.screenPadding.horizontal, paddingTop: Spacing.xl, paddingBottom: 20 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.xl },
   greeting: { fontFamily: Fonts.regular, fontSize: moderateScale(14), color: Colors.textSecondary },
   userName: { fontFamily: Fonts.bold, fontSize: moderateScale(24), color: Colors.textPrimary, marginTop: 2 },

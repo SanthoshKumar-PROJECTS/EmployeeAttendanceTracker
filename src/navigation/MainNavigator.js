@@ -17,6 +17,8 @@ import CheckInScreen from '../screens/CheckInScreen';
 import AttendanceHistoryScreen from '../screens/AttendanceHistoryScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import SettingsScreen from '../screens/SettingsScreen';
+import AttendanceDetailsScreen from '../screens/AttendanceDetailsScreen';
+import LocationPickerScreen from '../screens/LocationPickerScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -100,6 +102,8 @@ const MainNavigator = () => {
     >
       <Stack.Screen name="MainTabs" component={TabNavigator} />
       <Stack.Screen name="Settings" component={SettingsScreen} />
+      <Stack.Screen name="AttendanceDetails" component={AttendanceDetailsScreen} />
+      <Stack.Screen name="LocationPicker" component={LocationPickerScreen} options={{ presentation: 'fullScreenModal' }} />
     </Stack.Navigator>
   );
 };

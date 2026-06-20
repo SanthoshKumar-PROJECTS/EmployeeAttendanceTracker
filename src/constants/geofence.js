@@ -6,27 +6,30 @@
 
 export const GEOFENCE_ZONES = [
   {
-    id: 'zone_main_office',
+    id: 'zone_main_office_v5', // Bumped ID to force re-seed
     name: 'Main Office',
-    latitude: 12.9716,     // Example: Bangalore coordinates
-    longitude: 77.5946,
+    locationName: '87, Gopathy Narayana Rd, Lakshimi Colony, T. Nagar, Chennai',
+    latitude: 13.045672,
+    longitude: 80.241572,
     radiusMeters: 200,
     isActive: true,
   },
   {
-    id: 'zone_branch_office',
-    name: 'Branch Office',
-    latitude: 13.0827,     // Example: Secondary location
-    longitude: 80.2707,
-    radiusMeters: 150,
+    id: 'zone_site_1',
+    name: 'Site 1',
+    locationName: '89, Subbarayan Nagar, Thoraipakkam, Chennai',
+    latitude: 12.948383,
+    longitude: 80.245552,
+    radiusMeters: 200,
     isActive: true,
   },
   {
-    id: 'zone_client_site',
-    name: 'Client Site - A',
-    latitude: 12.9352,
-    longitude: 77.6245,
-    radiusMeters: 100,
+    id: 'zone_site_2',
+    name: 'Site 2',
+    locationName: '4/313, MMDA Colony, Maduravoyal, Chennai',
+    latitude: 13.077429,
+    longitude: 80.193912,
+    radiusMeters: 200,
     isActive: true,
   },
 ];

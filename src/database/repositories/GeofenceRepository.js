@@ -10,18 +10,28 @@ import { GEOFENCE_ZONES } from '../../constants/geofence';
 const TABLE = 'geofence_zones';
 
 /**
- * Seed default geofence zones (runs once on first app launch)
+ * Seed default geofence zones (runs once on first app launch or during migration)
  */
 export const seedDefaults = async () => {
   const existing = await queryOne(`SELECT COUNT(*) as count FROM ${TABLE}`);
-  if (existing && existing.count > 0) return; // Already seeded
+  
+  if (existing && existing.count > 0) {
+    // Migration: Check if the v5 zone (with exact locationName) exists. If not, wipe and insert new ones.
+    const hasV5 = await queryOne(`SELECT COUNT(*) as count FROM ${TABLE} WHERE id = 'zone_main_office_v5'`);
+    if (!hasV5 || hasV5.count === 0) {
+      console.log('[GeofenceRepo] Old zones detected (missing v5). Wiping and migrating to v5 defaults with exact locationNames.');
+      await executeSql(`DELETE FROM ${TABLE}`);
+    } else {
+      return; // Already seeded with latest zones
+    }
+  }
 
   const timestamp = now();
   for (const zone of GEOFENCE_ZONES) {
     await executeSql(
-      `INSERT OR IGNORE INTO ${TABLE} (id, name, latitude, longitude, radiusMeters, isActive, createdAt, updatedAt)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [zone.id, zone.name, zone.latitude, zone.longitude, zone.radiusMeters, zone.isActive ? 1 : 0, timestamp, timestamp]
+      `INSERT OR IGNORE INTO ${TABLE} (id, name, locationName, latitude, longitude, radiusMeters, isActive, createdAt, updatedAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [zone.id, zone.name, zone.locationName || '', zone.latitude, zone.longitude, zone.radiusMeters, zone.isActive ? 1 : 0, timestamp, timestamp]
     );
   }
   console.log('[GeofenceRepo] Default zones seeded');
@@ -51,12 +61,12 @@ export const findById = async (id) => {
 /**
  * Create a new zone
  */
-export const createZone = async ({ id, name, latitude, longitude, radiusMeters = 200 }) => {
+export const createZone = async ({ id, name, locationName = '', latitude, longitude, radiusMeters = 200 }) => {
   const timestamp = now();
   await executeSql(
-    `INSERT INTO ${TABLE} (id, name, latitude, longitude, radiusMeters, isActive, createdAt, updatedAt)
-     VALUES (?, ?, ?, ?, ?, 1, ?, ?)`,
-    [id, name, latitude, longitude, radiusMeters, timestamp, timestamp]
+    `INSERT INTO ${TABLE} (id, name, locationName, latitude, longitude, radiusMeters, isActive, createdAt, updatedAt)
+     VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+    [id, name, locationName, latitude, longitude, radiusMeters, timestamp, timestamp]
   );
   return findById(id);
 };
@@ -69,6 +79,7 @@ export const updateZone = async (id, updates) => {
   const values = [];
 
   if (updates.name !== undefined) { fields.push('name = ?'); values.push(updates.name); }
+  if (updates.locationName !== undefined) { fields.push('locationName = ?'); values.push(updates.locationName); }
   if (updates.latitude !== undefined) { fields.push('latitude = ?'); values.push(updates.latitude); }
   if (updates.longitude !== undefined) { fields.push('longitude = ?'); values.push(updates.longitude); }
   if (updates.radiusMeters !== undefined) { fields.push('radiusMeters = ?'); values.push(updates.radiusMeters); }

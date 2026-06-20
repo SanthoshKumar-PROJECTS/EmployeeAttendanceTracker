@@ -13,6 +13,7 @@ const useAuthStore = create((set, get) => ({
   token: null,
   isAuthenticated: false,
   isLoading: true, // starts true for initial session restore
+  isAuthLoading: false, // loading state for login/register buttons
   error: null,
   biometricInfo: null,
   _tokenRefreshUnsubscribe: null, // internal: cleans up FCM listener on logout
@@ -50,7 +51,7 @@ const useAuthStore = create((set, get) => ({
    */
   login: async (email, password) => {
     try {
-      set({ isLoading: true, error: null });
+      set({ isAuthLoading: true, error: null });
       const result = await AuthService.login(email, password);
 
       // Save FCM token and set up refresh listener
@@ -61,7 +62,7 @@ const useAuthStore = create((set, get) => ({
         user: result.user,
         token: result.token,
         isAuthenticated: true,
-        isLoading: false,
+        isAuthLoading: false,
         error: null,
         _tokenRefreshUnsubscribe: unsubscribe,
       });
@@ -71,7 +72,7 @@ const useAuthStore = create((set, get) => ({
 
       return { success: true };
     } catch (error) {
-      set({ isLoading: false, error: error.message });
+      set({ isAuthLoading: false, error: error.message });
       return { success: false, error: error.message };
     }
   },
@@ -81,7 +82,7 @@ const useAuthStore = create((set, get) => ({
    */
   register: async ({ email, password, fullName, department, phone }) => {
     try {
-      set({ isLoading: true, error: null });
+      set({ isAuthLoading: true, error: null });
       const result = await AuthService.register({ email, password, fullName, department, phone });
 
       // Save FCM token and set up refresh listener
@@ -92,7 +93,7 @@ const useAuthStore = create((set, get) => ({
         user: result.user,
         token: result.token,
         isAuthenticated: true,
-        isLoading: false,
+        isAuthLoading: false,
         error: null,
         _tokenRefreshUnsubscribe: unsubscribe,
       });
@@ -102,7 +103,7 @@ const useAuthStore = create((set, get) => ({
 
       return { success: true };
     } catch (error) {
-      set({ isLoading: false, error: error.message });
+      set({ isAuthLoading: false, error: error.message });
       return { success: false, error: error.message };
     }
   },
@@ -112,7 +113,7 @@ const useAuthStore = create((set, get) => ({
    */
   loginWithBiometric: async () => {
     try {
-      set({ isLoading: true, error: null });
+      set({ isAuthLoading: true, error: null });
       const result = await AuthService.loginWithBiometric();
 
       // Save FCM token and set up refresh listener
@@ -123,7 +124,7 @@ const useAuthStore = create((set, get) => ({
         user: result.user,
         token: result.token,
         isAuthenticated: true,
-        isLoading: false,
+        isAuthLoading: false,
         error: null,
         _tokenRefreshUnsubscribe: unsubscribe,
       });
@@ -133,7 +134,7 @@ const useAuthStore = create((set, get) => ({
 
       return { success: true };
     } catch (error) {
-      set({ isLoading: false, error: error.message });
+      set({ isAuthLoading: false, error: error.message });
       return { success: false, error: error.message };
     }
   },
