@@ -3,7 +3,7 @@
  * Centralized error handling with user-friendly messages.
  */
 
-import { Alert } from 'react-native';
+import useAlertStore from '../store/useAlertStore';
 
 /**
  * Error categories
@@ -56,14 +56,14 @@ export const showError = (error, title = null) => {
   const category = title || classifyError(error);
   const message = error.message || error.toString();
 
-  Alert.alert(category, message, [{ text: 'OK' }]);
+  useAlertStore.getState().showAlert(category, message, [{ text: 'OK' }]);
 };
 
 /**
  * Show a confirmation dialog
  */
 export const showConfirm = (title, message, onConfirm, onCancel) => {
-  Alert.alert(title, message, [
+  useAlertStore.getState().showAlert(title, message, [
     { text: 'Cancel', style: 'cancel', onPress: onCancel },
     { text: 'Confirm', onPress: onConfirm },
   ]);
@@ -73,7 +73,7 @@ export const showConfirm = (title, message, onConfirm, onCancel) => {
  * Show a success message
  */
 export const showSuccess = (title, message) => {
-  Alert.alert(title, message, [{ text: 'OK' }]);
+  useAlertStore.getState().showAlert(title, message, [{ text: 'OK' }]);
 };
 
 /**
@@ -99,7 +99,7 @@ export const setupGlobalErrorHandler = () => {
     console.error('[GlobalError]', isFatal ? 'FATAL:' : 'ERROR:', error);
 
     if (isFatal) {
-      Alert.alert(
+      useAlertStore.getState().showAlert(
         'Unexpected Error',
         'The app encountered an unexpected error. Please restart the app.',
         [{ text: 'OK' }]

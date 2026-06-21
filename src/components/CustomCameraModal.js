@@ -13,15 +13,15 @@ import {
   TouchableOpacity,
   Text,
   ActivityIndicator,
-  Alert,
-  SafeAreaView,
 } from 'react-native';
 import { Camera, useCameraDevice, useCameraPermission, usePhotoOutput } from 'react-native-vision-camera';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import useAlertStore from '../store/useAlertStore';
 import { Colors } from '../theme/colors';
 import { Fonts } from '../theme/fonts';
 import { Spacing } from '../theme/spacing';
 import { scale, verticalScale, moderateScale } from '../utils/responsive';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const CustomCameraModal = ({ visible, onClose, onPhotoCaptured }) => {
   const cameraRef = useRef(null);
@@ -38,12 +38,12 @@ const CustomCameraModal = ({ visible, onClose, onPhotoCaptured }) => {
     if (visible && !hasPermission) {
       checkPermissions();
     }
-  }, [visible, hasPermission]);
+  }, [visible, hasPermission, checkPermissions]);
 
   const checkPermissions = async () => {
     const isGranted = await requestPermission();
     if (!isGranted) {
-      Alert.alert('Permission Denied', 'Camera permission is required to capture your selfie.');
+      useAlertStore.getState().showAlert('Permission Denied', 'Camera permission is required to capture your selfie.');
       onClose();
     }
   };
@@ -56,12 +56,12 @@ const CustomCameraModal = ({ visible, onClose, onPhotoCaptured }) => {
           { flashMode: 'off' },
           {}
         );
-        
+
         // Pass the temp path back
         onPhotoCaptured(`file://${photoFile.filePath}`);
       } catch (error) {
         console.error('Failed to take photo:', error);
-        Alert.alert('Error', 'Failed to capture photo. Please try again.');
+        useAlertStore.getState().showAlert('Error', 'Failed to capture photo. Please try again.');
       } finally {
         setIsCapturing(false);
       }

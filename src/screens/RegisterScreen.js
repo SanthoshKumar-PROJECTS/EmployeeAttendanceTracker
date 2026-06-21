@@ -22,6 +22,7 @@ import { Fonts } from '../theme/fonts';
 import useAuthStore from '../store/useAuthStore';
 import ScreenWrapper from '../components/ScreenWrapper';
 import { scale, verticalScale, moderateScale } from '../utils/responsive';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const RegisterScreen = ({ navigation }) => {
   const [fullName, setFullName] = useState('');
@@ -148,7 +149,7 @@ const RegisterScreen = ({ navigation }) => {
           </Animated.View>
 
           <ScrollView
-            contentContainerStyle={[styles.scrollContent, { paddingTop: 0 }]}
+            contentContainerStyle={[styles.scrollContent, { paddingTop: 0, paddingBottom: Math.max(useSafeAreaInsets().bottom, 24) }]}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
@@ -191,7 +192,14 @@ const RegisterScreen = ({ navigation }) => {
                   placeholder="Create a password"
                   placeholderTextColor={Colors.textMuted}
                   value={password}
-                  onChangeText={setPassword}
+                  onChangeText={(text) => {
+                    setPassword(text);
+                    if (errors.password) {
+                      const newErrors = { ...errors };
+                      delete newErrors.password;
+                      setErrors(newErrors);
+                    }
+                  }}
                   secureTextEntry={!showPassword}
                   editable={!isLoading}
                 />

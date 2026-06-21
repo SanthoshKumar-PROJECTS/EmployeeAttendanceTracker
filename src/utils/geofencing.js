@@ -45,6 +45,7 @@ export const isWithinGeofence = (currentPosition, zone) => {
   return {
     isInside: distance <= zone.radiusMeters,
     distance: Math.round(distance),
+    distanceToBoundary: Math.max(0, Math.round(distance - zone.radiusMeters)),
     radiusMeters: zone.radiusMeters,
   };
 };
@@ -68,8 +69,8 @@ export const checkAllGeofences = (currentPosition, zones) => {
     };
   });
 
-  // Sort by distance (nearest first)
-  results.sort((a, b) => a.distance - b.distance);
+  // Sort by distance to boundary (nearest boundary first)
+  results.sort((a, b) => a.distanceToBoundary - b.distanceToBoundary);
 
   const insideZone = results.find((r) => r.isInside);
 

@@ -151,10 +151,15 @@ const useAuthStore = create((set, get) => ({
       }
 
       await AuthService.logout();
+      
+      // Refresh biometric info so the login screen knows credentials are now stored
+      const biometricInfo = await AuthService.checkBiometricAvailability();
+
       set({
         user: null,
         token: null,
         isAuthenticated: false,
+        biometricInfo,
         error: null,
         _tokenRefreshUnsubscribe: null,
       });

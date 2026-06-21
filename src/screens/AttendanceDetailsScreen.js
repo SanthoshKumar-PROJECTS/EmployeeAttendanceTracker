@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import MapView, { Marker, Circle, PROVIDER_GOOGLE } from 'react-native-maps';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ScreenWrapper from '../components/ScreenWrapper';
 import { Colors } from '../theme/colors';
 import { Spacing } from '../theme/spacing';
@@ -69,7 +70,7 @@ const AttendanceDetailsScreen = ({ route, navigation }) => {
     fetchNames();
   }, [record]);
 
-  const showCheckOut = !!(record?.checkOutLat && record?.checkOutLng);
+  const showCheckOut = !!(record?.checkOutLat && record?.checkOutLng && record?.status !== 'auto_closed');
   const checkInInside = record?.isWithinGeofence !== 0;
   const checkOutInside = record?.isCheckOutWithinGeofence !== 0;
 
@@ -170,7 +171,10 @@ const AttendanceDetailsScreen = ({ route, navigation }) => {
         <View style={{ width: 24 }} />
       </View>
 
-      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingTop: 0 }]} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        contentContainerStyle={[styles.scrollContent, { paddingTop: 0, paddingBottom: Math.max(useSafeAreaInsets().bottom, 24) }]} 
+        showsVerticalScrollIndicator={false}
+      >
         
         {/* Basic Session Info */}
         <View style={styles.card}>

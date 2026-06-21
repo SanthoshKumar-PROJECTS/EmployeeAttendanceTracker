@@ -270,6 +270,20 @@ export const deleteAllForUser = async (userId) => {
   await executeSql(`DELETE FROM ${TABLE} WHERE userId = ?`, [userId]);
 };
 
+/**
+ * Get all records pending sync
+ */
+export const getPendingSyncRecords = async () => {
+  return queryRows(`SELECT * FROM ${TABLE} WHERE syncStatus = 'pending'`);
+};
+
+/**
+ * Mark a record as synced
+ */
+export const markRecordAsSynced = async (id) => {
+  await executeSql(`UPDATE ${TABLE} SET syncStatus = 'synced' WHERE id = ?`, [id]);
+};
+
 export default {
   createRecord,
   checkOut,
@@ -288,4 +302,6 @@ export default {
   getAllRecords,
   deleteRecord,
   deleteAllForUser,
+  getPendingSyncRecords,
+  markRecordAsSynced,
 };

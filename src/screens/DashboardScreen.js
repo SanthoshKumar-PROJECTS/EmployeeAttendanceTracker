@@ -12,7 +12,6 @@ import {
   TouchableOpacity,
   RefreshControl,
   Animated,
-  Dimensions,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors } from '../theme/colors';
@@ -21,11 +20,10 @@ import { Fonts } from '../theme/fonts';
 import useAuthStore from '../store/useAuthStore';
 import useAttendanceStore from '../store/useAttendanceStore';
 import { getWeekDates, getISTGreeting } from '../utils/dateUtils';
+import NotificationService from '../services/NotificationService';
 import LiveTimer from '../components/LiveTimer';
 import ScreenWrapper from '../components/ScreenWrapper';
 import { scale, verticalScale, moderateScale } from '../utils/responsive';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const DashboardScreen = ({ navigation }) => {
   const { user } = useAuthStore();
@@ -39,6 +37,9 @@ const DashboardScreen = ({ navigation }) => {
       loadWeeklyRecords(user.id);
     }
     Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }).start();
+    
+    // Request push notification permissions after login when the UI is fully mounted
+    NotificationService.requestPermission().catch(err => console.log('Push perm error:', err));
   }, [user, loadDashboardStats, loadWeeklyRecords, fadeAnim]);
 
   // Live timer logic is now handled in isolation by <LiveTimer />
@@ -316,12 +317,13 @@ const styles = StyleSheet.create({
 
   // Actions
   actionsSection: { marginBottom: Spacing.lg },
-  actionsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  actionsGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
   actionTile: {
-    width: (SCREEN_WIDTH - 40 - 10) / 2 - 5,
+    width: '48%',
     backgroundColor: Colors.surface, borderRadius: Spacing.radius.md,
     padding: Spacing.base, alignItems: 'center',
     borderWidth: 1, borderColor: Colors.border,
+    marginBottom: Spacing.sm + 4,
   },
   actionTileIcon: { width: scale(44), height: verticalScale(44), borderRadius: moderateScale(22), justifyContent: 'center', alignItems: 'center', marginBottom: Spacing.sm },
   actionTileLabel: { fontFamily: Fonts.medium, fontSize: moderateScale(13), color: Colors.textPrimary },

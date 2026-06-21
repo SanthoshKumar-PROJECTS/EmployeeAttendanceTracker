@@ -18,10 +18,13 @@ const ScreenWrapper = ({
   
   const safeTop = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : insets.top;
   const paddingTop = Math.max(safeTop, minPaddingTop);
+  // Give extra padding for gesture bars, especially important for scrollable lists
+  const safeBottom = Math.max(insets.bottom, 24);
 
   let inner = scrollable ? (
     <ScrollView
       contentContainerStyle={[
+        { paddingBottom: safeBottom }, // Add safe bottom to scroll content
         contentContainerStyle,
         { paddingTop }
       ]}
@@ -31,7 +34,7 @@ const ScreenWrapper = ({
       {children}
     </ScrollView>
   ) : (
-    <View style={[{ flex: 1 }, contentContainerStyle, { paddingTop }]} {...rest}>
+    <View style={[{ flex: 1, paddingBottom: 0 }, contentContainerStyle, { paddingTop }]} {...rest}>
       {children}
     </View>
   );

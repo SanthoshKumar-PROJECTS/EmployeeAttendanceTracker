@@ -19,6 +19,7 @@ import { Colors } from '../theme/colors';
 import { Spacing } from '../theme/spacing';
 import { Fonts } from '../theme/fonts';
 import useAuthStore from '../store/useAuthStore';
+import useAlertStore from '../store/useAlertStore';
 import ScreenWrapper from '../components/ScreenWrapper';
 import { scale, verticalScale, moderateScale } from '../utils/responsive';
 

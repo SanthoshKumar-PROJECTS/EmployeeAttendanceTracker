@@ -3,7 +3,7 @@
  * User profile, change password, export data, and logout.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -11,10 +11,10 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors } from '../theme/colors';
+import useAlertStore from '../store/useAlertStore';
 import { Spacing } from '../theme/spacing';
 import { Fonts } from '../theme/fonts';
 import useAuthStore from '../store/useAuthStore';
@@ -78,10 +78,18 @@ const ProfileScreen = ({ navigation }) => {
     if (result.success) {
       setIsEditing(false);
       setErrors({});
-      Alert.alert('Success', 'Profile updated successfully');
+      useAlertStore.getState().showAlert('Success', 'Profile updated successfully');
     } else {
-      Alert.alert('Error', result.error);
+      useAlertStore.getState().showAlert('Error', result.error);
     }
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    setEditName(user?.fullName || '');
+    setEditDept(user?.department || '');
+    setEditPhone(user?.phone || '');
+    setErrors({});
   };
 
   const validatePassword = () => {
@@ -106,7 +114,7 @@ const ProfileScreen = ({ navigation }) => {
 
     const result = await changePassword(currentPwd, newPwd);
     if (result.success) {
-      Alert.alert('Success', 'Password changed successfully');
+      useAlertStore.getState().showAlert('Success', 'Password changed successfully');
       setShowChangePassword(false);
       setCurrentPwd('');
       setNewPwd('');
@@ -114,7 +122,7 @@ const ProfileScreen = ({ navigation }) => {
       setErrors({});
       setConfirmPwd('');
     } else {
-      Alert.alert('Error', result.error);
+      useAlertStore.getState().showAlert('Error', result.error);
     }
   };
 
@@ -142,7 +150,7 @@ const ProfileScreen = ({ navigation }) => {
   const strength = getPasswordStrength();
 
   const handleLogout = () => {
-    Alert.alert(
+    useAlertStore.getState().showAlert(
       'Confirm Logout',
       'Are you sure you want to logout?',
       [
@@ -162,8 +170,8 @@ const ProfileScreen = ({ navigation }) => {
     <ScreenWrapper scrollable={false}>
       {/* Sticky Header */}
       <View style={[styles.header, { paddingHorizontal: Spacing.screenPadding.horizontal, paddingTop: Spacing.sm }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={Spacing.hitSlop}>
-          <Icon name="arrow-left" size={24} color={Colors.textPrimary} />
+        <TouchableOpacity onPress={() => isEditing ? handleCancelEdit() : navigation.goBack()} hitSlop={Spacing.hitSlop}>
+          <Icon name={isEditing ? "close" : "arrow-left"} size={24} color={Colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Profile</Text>
         <TouchableOpacity onPress={() => isEditing ? handleSaveProfile() : setIsEditing(true)} hitSlop={Spacing.hitSlop}>
@@ -177,9 +185,7 @@ const ProfileScreen = ({ navigation }) => {
       <View style={styles.profileCard}>
         <View style={styles.avatarContainer}>
           <View style={styles.avatar}>
-            <Text style={styles.avatarText}>
-              {(user?.fullName || 'U').charAt(0).toUpperCase()}
-            </Text>
+            <Icon name="account-circle" size={70} color={Colors.primary} />
           </View>
           <View style={styles.avatarGlow} />
         </View>
@@ -229,7 +235,7 @@ const ProfileScreen = ({ navigation }) => {
             {user?.department ? (
               <View style={styles.deptBadge}>
                 <Icon name="domain" size={12} color={Colors.primary} />
-                <Text style={styles.deptText}>{user.department}</Text>
+                <Text style={styles.deptText} numberOfLines={1} ellipsizeMode="tail">{user.department}</Text>
               </View>
             ) : null}
           </>
@@ -385,7 +391,7 @@ const styles = StyleSheet.create({
   avatarContainer: { position: 'relative', marginBottom: Spacing.base },
   avatar: {
     width: scale(80), height: verticalScale(80), borderRadius: moderateScale(40),
-    backgroundColor: Colors.primary, justifyContent: 'center', alignItems: 'center',
+    backgroundColor: Colors.surface, justifyContent: 'center', alignItems: 'center',
   },
   avatarText: { fontFamily: Fonts.bold, fontSize: moderateScale(32), color: Colors.white },
   avatarGlow: {
@@ -397,8 +403,9 @@ const styles = StyleSheet.create({
   deptBadge: {
     flexDirection: 'row', alignItems: 'center', marginTop: Spacing.sm,
     backgroundColor: Colors.primaryGlow, paddingHorizontal: 12, paddingVertical: 4, borderRadius: moderateScale(12),
+    maxWidth: '90%',
   },
-  deptText: { fontFamily: Fonts.medium, fontSize: moderateScale(12), color: Colors.primary, marginLeft: 4 },
+  deptText: { fontFamily: Fonts.medium, fontSize: moderateScale(12), color: Colors.primary, marginLeft: 4, flexShrink: 1 },
 
   // Edit Form
   editForm: { width: '100%', marginTop: Spacing.sm },

@@ -1,93 +1,64 @@
-# Employee Attendance & Field Tracking App
+# Employee Attendance & Field Tracking Mobile Application
 
-A premium, highly-optimized React Native mobile application designed for secure employee attendance and field tracking. This application features a robust **Offline-First SQLite Database Architecture**, delivering butter-smooth 60fps performance across dynamic interfaces, maps, and camera modules.
+An enterprise-grade, offline-first React Native application for tracking employee attendance via GPS geofencing, selfie verification, and biometric authentication.
 
-## 🚀 Core Features
+## Core Features
+- **Secure Authentication:** JWT-based logic, local SQLite session management, and `react-native-keychain` credential encryption.
+- **Biometric Login:** Face ID and Fingerprint support via `react-native-biometrics`.
+- **Offline-First Auto Sync:** Uses `@react-native-community/netinfo` to queue check-ins locally in SQLite when offline, automatically syncing to the REST API via a background service when the internet returns.
+- **Advanced Geofencing:** Employs the Haversine formula to accurately calculate boundary distances. Restricts check-ins outside allowed office zones.
+- **Selfie Verification:** Integrates `react-native-vision-camera` to strictly capture front-facing images during attendance marking.
+- **Push Notifications:** Firebase Cloud Messaging (FCM) configured for server-side pushes and auto-checkout reminders.
 
-- **Secure Login & Registration**: Local account creation with encrypted `Keychain` credential storage.
-- **Biometric Authentication**: One-tap Fingerprint and Face ID support.
-- **Google Maps Geofencing Engine**: 
-  - Dynamic `MapView` integration.
-  - Custom location picker with `Google Places API` reverse-geocoding.
-  - Real-time `haversine` distance calculations running offline on the device CPU.
-- **Vision Camera Integration**: 
-  - High-performance native `<Camera>` integration using `react-native-vision-camera` (Nitro Modules C++ Engine).
-  - Front-camera selfie capture during check-in/out.
-  - Images saved directly to the local filesystem (`react-native-fs`).
-- **Butter-Smooth UI Architecture**: 
-  - Isolated Timer components to prevent unnecessary screen renders.
-  - Deeply optimized `useMemo` hooks for Map rendering and `useCallback` implementations for infinite-scrolling lists.
-- **Offline-First Philosophy**: 
-  - The app's core functions (Check-In, Geofence calculation, Camera capture, and Dashboard Analytics) do **not** require internet access.
-  - All records and user data sync perfectly with the local SQLite database.
-- **Smart Notifications**: 
-  - Automatic offline daily reminder alarms triggered via `@notifee/react-native`.
-  - Firebase Cloud Messaging (`FCM`) configured for remote push notifications.
+## Tech Stack
+- **Framework:** React Native (0.83.9)
+- **State Management:** Zustand
+- **Local Database:** SQLite (`react-native-sqlite-storage`)
+- **Maps:** `react-native-maps`
+- **Networking:** Axios (with mock-adapter for offline demo)
 
 ---
 
-## 🛠️ Technology Stack
+## Setup & Installation Instructions
 
-- **Framework**: React Native 0.83.9 (JavaScript)
-- **Local Database**: `react-native-sqlite-storage`
-- **State Management**: `zustand`
-- **Credential Storage**: `react-native-keychain`
-- **Biometrics**: `react-native-biometrics`
-- **Location Engine**: `react-native-geolocation-service`
-- **Maps & Geocoding**: `react-native-maps`, `react-native-google-places-autocomplete`
-- **High-Performance Camera**: `react-native-vision-camera`, `react-native-nitro-modules`
-- **Filesystem**: `react-native-fs`
-- **Notifications**: `@react-native-firebase/app`, `@react-native-firebase/messaging`, `@notifee/react-native`
-- **Graphics & Styling**: Custom Premium Dark Theme, Vanilla CSS layout system
-
----
-
-## 📦 Getting Started
+### Prerequisites
+- Node.js >= 20
+- Ruby (for iOS Cocoapods)
+- Android Studio / Xcode
 
 ### 1. Install Dependencies
 ```bash
+# Clone the repository
+git clone <repository_url>
+cd EmployeeAttendanceTracker
+
+# Install Node modules
 npm install
 ```
-*(Note: Ensure your environment is configured for React Native CLI, not Expo)*
 
-### 2. Start the Metro Bundler
-```bash
-npm start -- --reset-cache
-```
+### 2. Run the Application
 
-### 3. Run on Android
-Open a new terminal window and run:
+**For Android:**
 ```bash
 npm run android
+# Or build the APK directly:
+cd android && ./gradlew assembleRelease
 ```
 
----
-
-## 🏗️ Local Architecture Flow
-
-```text
-Local Mobile App (100% Client-Side)
-│
-├── Auth Flow
-│   └── Zustand Store ↔ SQLite DB + Keychain Auth Tokens + Biometrics API
-│
-├── Settings & Configuration Flow
-│   └── SQLite DB (Geofence Configs) ↔ Google Places API (Location Picker)
-│
-├── Attendance Flow (Check In/Out)
-│   ├── Location Service (GPS Lat/Lng)
-│   ├── Geofence Validator (Haversine CPU calc against DB zones)
-│   ├── Camera Service (Native Vision Camera → Base64 / Local Filesystem)
-│   └── SQLite DB (Insert Attendance Record)
-│
-├── Dashboard & History Flow
-│   ├── Zustand Store (Memory Cache) ↔ SQLite DB (Query Rows)
-│   └── FlatList Engine (Render optimized historical tiles + Mini-Maps)
-│
-└── Notification Flow
-    └── Firebase Messaging (Remote FCM) + Notifee (Local Alarms)
+**For iOS:**
+```bash
+cd ios
+pod install
+cd ..
+npm run ios
 ```
 
-## ⚡ Performance Highlights
-* **ProGuard:** ProGuard has been explicitly disabled in `release` builds to ensure seamless compatibility with Google Firebase reflection dependencies. 
-* **React Native Memory:** `LiveTimer` components are strictly isolated, and heavy UI nodes (`MapView`, `Camera`) are memoized to guarantee smooth navigation transitions and strict 60fps scrolling.
+### 3. Testing the Application
+- **Registration:** Upon first launch, create a new account. Your credentials will be securely hashed in SQLite and stored in the device Keychain.
+- **Biometrics:** After your first login, log out. You will now see the "Login with Biometrics" button.
+- **Geofencing:** Go to "Settings" to add custom Geofence zones (e.g., set a zone exactly where you are currently standing) to test successful Check-Ins.
+- **Offline Sync:** Turn off your device's Wi-Fi/Data. Perform a Check-In. The UI will succeed and save it locally. Turn Wi-Fi back on, and watch the console log as the `SyncService` automatically uploads the pending record to the API.
+
+## Documentation
+- Refer to `docs/ARCHITECTURE.md` for system design and Mermaid flowcharts.
+- Refer to `docs/API_DATABASE.md` for the SQLite schema and Mock API endpoints.

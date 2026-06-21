@@ -166,7 +166,11 @@ export const getPlaceName = async (lat, lng) => {
     const data = await response.json();
     return data.display_name || 'Unknown Location';
   } catch (error) {
-    console.error('[Location] Reverse geocoding failed:', error);
+    if (error.message === 'Network request failed') {
+      console.log('[Location] Offline: Reverse geocoding unavailable. Defaulting to Unknown.');
+    } else {
+      console.log('[Location] Reverse geocoding failed:', error.message);
+    }
     return 'Unknown Location';
   }
 };

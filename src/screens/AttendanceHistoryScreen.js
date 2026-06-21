@@ -22,7 +22,6 @@ import { Fonts } from '../theme/fonts';
 import useAuthStore from '../store/useAuthStore';
 import useAttendanceStore from '../store/useAttendanceStore';
 import { formatTime, calculateDuration, getRelativeDay } from '../utils/dateUtils';
-import CameraService from '../services/CameraService';
 import ScreenWrapper from '../components/ScreenWrapper';
 import { scale, verticalScale, moderateScale } from '../utils/responsive';
 
@@ -76,17 +75,20 @@ const AttendanceHistoryScreen = ({ navigation }) => {
     }
   };
 
-  const renderRecord = useCallback(({ item, index }) => {
+  const HistoryItem = React.memo(({ item, index }) => {
     const duration = calculateDuration(item.checkInTime, item.checkOutTime);
     
-    // Animation delay based on index for staggered entrance
-    const itemAnim = new Animated.Value(0);
-    Animated.timing(itemAnim, {
-      toValue: 1,
-      duration: 400,
-      delay: index * 100,
-      useNativeDriver: true,
-    }).start();
+    // Properly cache the animation value so it doesn't recreate on every scroll
+    const itemAnim = useRef(new Animated.Value(0)).current;
+    
+    useEffect(() => {
+      Animated.timing(itemAnim, {
+        toValue: 1,
+        duration: 400,
+        delay: index * 50, // Shorter delay for smoother list scrolling
+        useNativeDriver: true,
+      }).start();
+    }, [index, itemAnim]);
 
     return (
       <TouchableOpacity 
@@ -149,7 +151,7 @@ const AttendanceHistoryScreen = ({ navigation }) => {
                   ({item.isWithinGeofence !== 0 ? 'Inside' : 'Outside'})
                 </Text>
               </View>
-              {item.checkOutTime ? (
+              {item.checkOutTime && item.status !== 'auto_closed' ? (
                 <View style={[styles.metaItem, { marginTop: 4 }]}>
                   <Icon name="logout" size={12} color={Colors.textMuted} />
                   <Text style={[styles.metaText, { flexShrink: 1 }]} numberOfLines={1} ellipsizeMode="tail">
@@ -162,10 +164,19 @@ const AttendanceHistoryScreen = ({ navigation }) => {
               ) : null}
             </View>
           </View>
+          
+          {/* Right: Chevron */}
+          <View style={styles.recordRight}>
+            <Icon name="chevron-right" size={20} color={Colors.textMuted} />
+          </View>
         </Animated.View>
       </TouchableOpacity>
     );
-  }, [navigation]);
+  });
+
+  const renderRecord = useCallback(({ item, index }) => {
+    return <HistoryItem item={item} index={index} />;
+  }, []);
 
   const renderEmpty = useCallback(() => (
     <View style={styles.emptyContainer}>

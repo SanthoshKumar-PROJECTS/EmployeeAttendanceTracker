@@ -14,11 +14,12 @@ import {
   Image,
   ActivityIndicator,
   Animated,
-  Alert,
   Modal,
+  Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors } from '../theme/colors';
+import useAlertStore from '../store/useAlertStore';
 import { Spacing } from '../theme/spacing';
 import { Fonts } from '../theme/fonts';
 import { scale, verticalScale, moderateScale } from '../utils/responsive';
@@ -30,7 +31,7 @@ import LocationService from '../services/LocationService';
 import GeofenceService from '../services/GeofenceService';
 import CameraService from '../services/CameraService';
 import LiveTimer from '../components/LiveTimer';
-import { formatTime, calculateLiveDuration, calculateDuration } from '../utils/dateUtils';
+import { formatTime, calculateDuration } from '../utils/dateUtils';
 import { getISTGreeting } from '../utils/dateUtils';
 import { formatDistance } from '../utils/geofencing';
 import MapView, { Marker, Circle, PROVIDER_GOOGLE } from 'react-native-maps';
@@ -101,6 +102,7 @@ const CheckInScreen = ({ navigation }) => {
   }, [todayStatus, pulseAnim]);
 
   const fetchLocation = async () => {
+    setLocationLoading(true);
     setLocationError(null);
     try {
       const pos = await LocationService.getCurrentPosition();
@@ -146,7 +148,7 @@ const CheckInScreen = ({ navigation }) => {
         setSelfieUri(result.uri);
       }
     } catch (err) {
-      Alert.alert('Camera Error', err.message);
+      useAlertStore.getState().showAlert('Camera Error', err.message);
     }
   };
 
@@ -154,24 +156,35 @@ const CheckInScreen = ({ navigation }) => {
     clearError();
 
     if (!location) {
-      Alert.alert('Location Required', 'Please wait for GPS to get your location.');
+      useAlertStore.getState().showAlert('Location Required', 'Please wait for GPS to get your location.');
       return;
     }
 
     if (!selfiePath) {
-      Alert.alert('Selfie Required', 'Please capture a selfie before checking in.');
+      useAlertStore.getState().showAlert('Selfie Required', 'Please capture a selfie before checking in.');
       return;
     }
 
     if (geofenceStatus && !geofenceStatus.isInsideAny) {
-      Alert.alert(
-        '⚠️ Outside Allowed Area',
-        `You are ${formatDistance(geofenceStatus.nearestZone.distance)} away from "${geofenceStatus.nearestZone.zone.name}".`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Check In Anyway', onPress: () => performCheckIn(true) },
-        ]
-      );
+      if (geofenceStatus.nearestZone) {
+        useAlertStore.getState().showAlert(
+          '⚠️ Outside Allowed Area',
+          `You are ${formatDistance(geofenceStatus.nearestZone.distanceToBoundary)} away from "${geofenceStatus.nearestZone.zone.name}".`,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Check In Anyway', onPress: () => performCheckIn(true) },
+          ]
+        );
+      } else {
+        useAlertStore.getState().showAlert(
+          '⚠️ No Geofence Zones Configured',
+          'Please configure geofence zones in Settings.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Check In Anyway', onPress: () => performCheckIn(true) },
+          ]
+        );
+      }
       return;
     }
 
@@ -184,7 +197,7 @@ const CheckInScreen = ({ navigation }) => {
       const z = zones.find(x => x.id === selectedZoneId);
       if (z) return z.name;
     }
-    if (geofenceStatus?.nearestZone) return geofenceStatus.nearestZone.zone.name;
+    if (geofenceStatus?.nearestZone?.zone?.name) return geofenceStatus.nearestZone.zone.name;
     return 'Unknown Zone';
   };
 
@@ -192,7 +205,7 @@ const CheckInScreen = ({ navigation }) => {
     const currentZone = getSelectedZoneName();
     const result = await checkIn(user.id, { selfiePath, skipGeofence, zoneName: currentZone });
     if (result.success) {
-      Alert.alert('✅ Checked In!', 'Your attendance has been recorded.');
+      useAlertStore.getState().showAlert('✅ Checked In!', 'Your attendance has been recorded.');
       setSelfiePath(null);
       setSelfieUri(null);
     }
@@ -200,7 +213,7 @@ const CheckInScreen = ({ navigation }) => {
 
   const handleCheckOut = async () => {
     clearError();
-    Alert.alert(
+    useAlertStore.getState().showAlert(
       'Confirm Check-Out',
       'Are you sure you want to check out?',
       [
@@ -213,7 +226,7 @@ const CheckInScreen = ({ navigation }) => {
             const result = await checkOut(user.id, currentZone, isInside);
             if (result.success) {
               const greeting = getISTGreeting().toLowerCase();
-              Alert.alert('✅ Checked Out!', `Have a great ${greeting}!`);
+              useAlertStore.getState().showAlert('✅ Checked Out!', `Have a great ${greeting}!`);
             }
           },
         },
@@ -222,7 +235,6 @@ const CheckInScreen = ({ navigation }) => {
   };
 
   const isCheckedIn = todayStatus?.status === 'checked_in';
-  const isAvailable = todayStatus?.status === 'available';
   const canCheckIn = !isCheckedIn && !locationLoading;
   const isInsideGeofence = geofenceStatus?.isInsideAny;
   const todaySessions = todayStatus?.todaySessions || [];
@@ -413,10 +425,16 @@ const CheckInScreen = ({ navigation }) => {
               ) : (
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.cardTitle, { color: Colors.error }]}>Outside Allowed Area</Text>
-                  <Text style={styles.geofenceDetail} numberOfLines={2}>
-                    Nearest: {geofenceStatus.nearestZone.zone.name}{'\n'}
-                    ({formatDistance(geofenceStatus.nearestZone.distance)})
-                  </Text>
+                  {geofenceStatus.nearestZone ? (
+                    <Text style={styles.geofenceDetail} numberOfLines={2}>
+                      Nearest: {geofenceStatus.nearestZone.zone.name}{'\n'}
+                      ({formatDistance(geofenceStatus.nearestZone.distanceToBoundary)} away)
+                    </Text>
+                  ) : (
+                    <Text style={styles.geofenceDetail} numberOfLines={2}>
+                      No geofence zones are currently configured.
+                    </Text>
+                  )}
                 </View>
               )}
             </View>

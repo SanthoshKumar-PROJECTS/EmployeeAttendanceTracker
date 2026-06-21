@@ -11,35 +11,19 @@ import {
   ScrollView,
   TouchableOpacity,
   Switch,
-  Alert,
   TextInput,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors } from '../theme/colors';
+import useAlertStore from '../store/useAlertStore';
 import { Spacing } from '../theme/spacing';
 import { Fonts } from '../theme/fonts';
 import GeofenceService from '../services/GeofenceService';
 import NotificationService from '../services/NotificationService';
 import LocationService from '../services/LocationService';
-import { formatDistance } from '../utils/geofencing';
-import useAuthStore from '../store/useAuthStore';
 import ScreenWrapper from '../components/ScreenWrapper';
 import { scale, verticalScale, moderateScale } from '../utils/responsive';
 import uuid from 'react-native-uuid';
-
-const mapDarkStyle = [
-  { "elementType": "geometry", "stylers": [{ "color": "#12121c" }] },
-  { "elementType": "labels.text.stroke", "stylers": [{ "color": "#12121c" }] },
-  { "elementType": "labels.text.fill", "stylers": [{ "color": "#a29bfe" }] },
-  { "featureType": "administrative", "elementType": "geometry", "stylers": [{ "color": "#2c2c3c" }] },
-  { "featureType": "poi", "elementType": "labels.text.fill", "stylers": [{ "color": "#8a8a9a" }] },
-  { "featureType": "poi.park", "elementType": "geometry", "stylers": [{ "color": "#161622" }] },
-  { "featureType": "road", "elementType": "geometry.fill", "stylers": [{ "color": "#222230" }] },
-  { "featureType": "road", "elementType": "geometry.stroke", "stylers": [{ "color": "#1a1a24" }] },
-  { "featureType": "road", "elementType": "labels.text.fill", "stylers": [{ "color": "#8a8a9a" }] },
-  { "featureType": "water", "elementType": "geometry", "stylers": [{ "color": "#0a0a14" }] },
-  { "featureType": "water", "elementType": "labels.text.fill", "stylers": [{ "color": "#4a4a5a" }] }
-];
 
 const SettingsScreen = ({ navigation }) => {
   const [zones, setZones] = useState([]);
@@ -78,7 +62,7 @@ const SettingsScreen = ({ navigation }) => {
   };
 
   const handleDeleteZone = (zone) => {
-    Alert.alert(
+    useAlertStore.getState().showAlert(
       'Delete Zone',
       `Are you sure you want to delete "${zone.name}"?`,
       [
@@ -97,7 +81,7 @@ const SettingsScreen = ({ navigation }) => {
 
   const handleAddClick = () => {
     if (zones.length >= 5) {
-      Alert.alert('Limit Reached', 'You can only configure up to 5 geofence zones.');
+      useAlertStore.getState().showAlert('Limit Reached', 'You can only configure up to 5 geofence zones.');
       return;
     }
     setEditingZoneId(null);
@@ -121,7 +105,7 @@ const SettingsScreen = ({ navigation }) => {
 
   const handleSaveZone = async () => {
     if (!newZoneName.trim() || !newZoneLat || !newZoneLng) {
-      Alert.alert('Error', 'Name and location are required');
+      useAlertStore.getState().showAlert('Error', 'Name and location are required');
       return;
     }
 
@@ -130,7 +114,7 @@ const SettingsScreen = ({ navigation }) => {
     const radius = parseInt(newZoneRadius, 10) || 200;
 
     if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-      Alert.alert('Error', 'Invalid coordinates selected');
+      useAlertStore.getState().showAlert('Error', 'Invalid coordinates selected');
       return;
     }
 
@@ -142,7 +126,7 @@ const SettingsScreen = ({ navigation }) => {
         longitude: lng,
         radiusMeters: radius,
       });
-      Alert.alert('Success', 'Geofence zone updated');
+      useAlertStore.getState().showAlert('Success', 'Geofence zone updated');
     } else {
       if (zones.length >= 5) return;
       await GeofenceService.addZone({
@@ -153,7 +137,7 @@ const SettingsScreen = ({ navigation }) => {
         longitude: lng,
         radiusMeters: radius,
       });
-      Alert.alert('Success', 'Geofence zone added');
+      useAlertStore.getState().showAlert('Success', 'Geofence zone added');
     }
 
     setIsFormVisible(false);

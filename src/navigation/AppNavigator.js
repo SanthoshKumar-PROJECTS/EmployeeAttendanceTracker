@@ -46,7 +46,7 @@ const AppNavigator = () => {
 
   useEffect(() => {
     initialize();
-  }, []);
+  }, [initialize]);
 
   // Show splash/loading screen during session restore
   if (isLoading) {

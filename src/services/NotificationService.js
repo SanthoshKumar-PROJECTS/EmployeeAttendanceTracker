@@ -362,7 +362,12 @@ export const sendAutoCheckOutNotification = async (record) => {
  * Initialize notification service
  */
 export const initialize = async () => {
-  await requestPermission();
+  // Add a slight delay to ensure the React Native Activity is fully mounted
+  // This prevents the Android 13+ permission dialog from being swallowed by the splash screen
+  setTimeout(async () => {
+    await requestPermission();
+  }, 1500);
+
   await createChannels();
   setupForegroundHandler();
   

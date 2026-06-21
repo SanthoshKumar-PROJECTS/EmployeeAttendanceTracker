@@ -18,6 +18,7 @@ import AttendanceRepository from './src/database/repositories/AttendanceReposito
 import useAuthStore from './src/store/useAuthStore';
 import useAttendanceStore from './src/store/useAttendanceStore';
 import { setupGlobalErrorHandler } from './src/utils/errorHandler';
+import GlobalAlertModal from './src/components/GlobalAlertModal';
 
 // Suppress known harmless warnings
 LogBox.ignoreLogs([
@@ -133,6 +134,7 @@ function App() {
   return (
     <SafeAreaProvider>
       <AppNavigator />
+      <GlobalAlertModal />
     </SafeAreaProvider>
   );
 }

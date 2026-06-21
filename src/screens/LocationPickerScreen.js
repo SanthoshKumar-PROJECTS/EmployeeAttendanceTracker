@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, StyleSheet, TouchableOpacity, Text, SafeAreaView } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors } from '../theme/colors';
@@ -8,7 +8,7 @@ import { Fonts } from '../theme/fonts';
 import { moderateScale, verticalScale } from '../utils/responsive';
 import { GooglePlacesAutocomplete } from 'react-native-google-places-autocomplete';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 
 const GOOGLE_PLACES_API_KEY = "AIzaSyB-Epzh0bpcXLhrHzSdztyoemggD607530";
 
@@ -28,7 +28,7 @@ const LocationPickerScreen = () => {
   const navigation = useNavigation();
   const route = useRoute();
   const insets = useSafeAreaInsets();
-  
+
   const { initialCoordinate, onLocationSelected } = route.params || {};
 
   const mapRef = useRef(null);
@@ -47,11 +47,11 @@ const LocationPickerScreen = () => {
       if (data.results && data.results.length > 0) {
         // Attempt to find the most specific place name (usually the first part of the formatted address)
         const bestMatch = data.results.find(r => r.types.includes('point_of_interest') || r.types.includes('establishment') || r.types.includes('route')) || data.results[0];
-        
+
         // Extract the primary name (take up to the first two parts for better context, avoiding single numbers like "No.7")
         const parts = bestMatch.formatted_address.split(',');
         const primaryName = parts.length > 1 ? `${parts[0].trim()}, ${parts[1].trim()}` : parts[0].trim();
-        
+
         setSelectedName(primaryName);
         autocompleteRef.current?.setAddressText(primaryName);
       }
@@ -66,7 +66,7 @@ const LocationPickerScreen = () => {
     if (selectedCoord) {
       fetchAddressFromCoordinates(selectedCoord.latitude, selectedCoord.longitude);
     }
-  }, []);
+  }, [selectedCoord]);
 
   const handleConfirm = () => {
     if (onLocationSelected) {
@@ -106,7 +106,7 @@ const LocationPickerScreen = () => {
       </MapView>
 
       {/* Search Autocomplete */}
-      <SafeAreaView style={[styles.searchSafeArea, { elevation: 10 }]} pointerEvents="box-none">
+      <View style={[styles.searchSafeArea, { elevation: 10 }]} pointerEvents="box-none">
         <View style={[styles.headerRow, { elevation: 10, zIndex: 10, paddingTop: Math.max(insets.top + 10, 12) }]} pointerEvents="box-none">
           <TouchableOpacity style={styles.iconButton} onPress={() => navigation.goBack()}>
             <Icon name="arrow-left" size={24} color={Colors.white} />
@@ -144,7 +144,7 @@ const LocationPickerScreen = () => {
                 radius: 50000, // 50km bias
               }}
               renderRightButton={() => (
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={{ justifyContent: 'center', paddingRight: Spacing.md }}
                   onPress={() => autocompleteRef.current?.setAddressText('')}
                 >
@@ -208,11 +208,11 @@ const LocationPickerScreen = () => {
             />
           </View>
         </View>
-      </SafeAreaView>
+      </View>
 
       {/* Bottom Panel */}
-      <SafeAreaView style={styles.bottomSafeArea}>
-        <View style={styles.bottomPanel}>
+      <View style={styles.bottomSafeArea}>
+        <View style={[styles.bottomPanel, { paddingBottom: Math.max(insets.bottom, 24) }]}>
           <Text style={styles.instructions}>Tap on the map or drag the marker to set the exact location.</Text>
           <View style={styles.coordDisplayRow}>
             <Text style={styles.coordText}>Lat: {selectedCoord.latitude.toFixed(6)}</Text>
@@ -222,7 +222,7 @@ const LocationPickerScreen = () => {
             <Text style={styles.confirmButtonText}>Confirm Location</Text>
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
+      </View>
     </View>
   );
 };

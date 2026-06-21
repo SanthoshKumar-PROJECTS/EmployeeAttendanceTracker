@@ -49,6 +49,7 @@ const CREATE_TABLES = [
     checkOutGeofenceZone TEXT DEFAULT '',
     status TEXT DEFAULT 'checked_in',
     notes TEXT DEFAULT '',
+    syncStatus TEXT DEFAULT 'pending',
     createdAt TEXT NOT NULL,
     updatedAt TEXT NOT NULL,
     FOREIGN KEY (userId) REFERENCES users(id)
@@ -91,6 +92,7 @@ const CREATE_INDEXES = [
   'CREATE INDEX IF NOT EXISTS idx_attendance_userId ON attendance(userId)',
   'CREATE INDEX IF NOT EXISTS idx_attendance_date ON attendance(date)',
   'CREATE INDEX IF NOT EXISTS idx_attendance_userId_date ON attendance(userId, date)',
+  'CREATE INDEX IF NOT EXISTS idx_attendance_syncStatus ON attendance(syncStatus)',
   'CREATE INDEX IF NOT EXISTS idx_sessions_userId ON sessions(userId)',
   'CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token)',
 ];
@@ -118,10 +120,7 @@ export const getDatabase = async () => {
       await dbInstance.executeSql(sql);
     }
 
-    // Create indexes
-    for (const sql of CREATE_INDEXES) {
-      await dbInstance.executeSql(sql);
-    }
+    // Indexes will be created after migrations to ensure columns exist
 
     // Migration: add fcmToken column to existing users tables
     try {
@@ -147,12 +146,25 @@ export const getDatabase = async () => {
       // Column already exists — safe to ignore
     }
 
+    // Migration: add syncStatus column to attendance table for offline sync
+    try {
+      await dbInstance.executeSql(`ALTER TABLE attendance ADD COLUMN syncStatus TEXT DEFAULT 'pending'`);
+      console.log('[SQLiteDB] Migration: added syncStatus column to attendance table');
+    } catch (e) {
+      // Column already exists — safe to ignore
+    }
+
     // Migration: add locationName column to geofence_zones table
     try {
       await dbInstance.executeSql(`ALTER TABLE geofence_zones ADD COLUMN locationName TEXT DEFAULT ''`);
       console.log('[SQLiteDB] Migration: added locationName column to geofence_zones table');
     } catch (e) {
       // Column already exists — safe to ignore
+    }
+
+    // Create indexes (running this after migrations ensures all columns exist)
+    for (const sql of CREATE_INDEXES) {
+      await dbInstance.executeSql(sql);
     }
 
     console.log('[SQLiteDB] Database initialized successfully');
